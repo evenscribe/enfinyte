@@ -24,9 +24,14 @@ pub struct GetMemoriesByQueryRequest {
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
-pub struct UpdateMememoryRequest {
-    pub memory_id: String,
+pub struct ExtendMemoryRequest {
+    pub parent_memory_id: String,
     pub content: String,
+}
+
+#[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
+pub struct GetMemoriesByIdRequest {
+    pub memory_id: String,
 }
 
 #[derive(Clone, Default)]
@@ -95,10 +100,10 @@ impl McpService {
     }
 
     #[tool(
-        name = "get_memory",
+        name = "get_all_memory",
         description = "Get all memories for the current user. Retrieves the user's persistent memory store containing important context, preferences, and historical interactions. This tool should be called at the beginning of conversations to load relevant contextual information and provide personalized responses based on past interactions. After using this information, remember to save new important details using add_memory."
     )]
-    async fn get_memory(
+    async fn get_all_memory(
         &self,
         Extension(parts): Extension<Parts>,
     ) -> Result<CallToolResult, McpError> {
@@ -115,6 +120,25 @@ impl McpService {
             .join("\n");
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent { text: memory_bulk }),
+            None,
+        )]))
+    }
+
+    #[tool(
+        name = "get_memory_by_id",
+        description = "Retrieve a specific memory by its unique identifier. This tool provides direct access to individual memories in the persistence layer when you have the exact memory ID. WHEN TO USE: (1) When following parent_id references from other memories to reconstruct conversation threads, (2) When you need detailed information about a specific memory mentioned in search results, (3) When building complete context by traversing memory relationships, or (4) When referencing a known memory ID from previous operations. IMPLEMENTATION: Simply provide the memory_id parameter to retrieve the full memory object with all its metadata and content. This is particularly useful for expanding context when get_memory_by_query results contain parent_id fields that point to related memories. BEST PRACTICE: Use this tool in combination with get_memory_by_query to follow memory chains and build comprehensive understanding of user context and conversation history."
+    )]
+    async fn get_memory_by_id(
+        &self,
+        Parameters(GetMemoriesByIdRequest { memory_id }): Parameters<GetMemoriesByIdRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let memory = MemoryController::get_memories_by_memory_id(memory_id)
+            .await
+            .unwrap();
+        let text = serde_json::to_string(&memory).unwrap();
+
+        Ok(CallToolResult::success(vec![Annotated::new(
+            RawContent::Text(RawTextContent { text }),
             None,
         )]))
     }
@@ -147,19 +171,24 @@ impl McpService {
     }
 
     #[tool(
-        name = "update_memory",
-        description = "Update an existing memory in the umem persistence layer. This tool should be used to modify, correct, or enhance existing memories rather than creating duplicates. WHEN TO USE: (1) When user preferences or details change and need to be updated in existing memories, (2) When previously stored information becomes outdated or incorrect, (3) When additional context or clarification needs to be added to existing memories, (4) When consolidating or refining memories to avoid redundancy, (5) When correcting errors or inaccuracies in stored memories. CRITICAL: Always prefer updating existing memories over creating new ones when the information relates to the same topic or entity - this prevents memory fragmentation and maintains clean, consolidated user context. Use get_memory_by_query first to locate relevant existing memories before deciding whether to update or add new memories. This tool is essential for maintaining accurate, up-to-date user context and should be used proactively whenever stored information needs modification."
+        name = "extend_memory",
+        description = "Create a new memory that extends or builds upon an existing memory by establishing a parent-child relationship. This tool enables hierarchical memory organization by linking new information to previously stored context. WHEN TO USE: (1) When adding follow-up information to an existing conversation thread, (2) When updating or expanding on previously saved user preferences or project details, (3) When creating memory chains that maintain chronological or logical relationships, or (4) When new information directly relates to or builds upon existing memories. IMPLEMENTATION: Provide the new content and the parent_memory_id of the existing memory you want to extend. This creates a linked memory structure that preserves context relationships and enables better retrieval of related information. BEST PRACTICE: Use this tool to maintain organized memory hierarchies rather than creating isolated memories for related information. This helps preserve conversation threads and project continuity across sessions."
     )]
-    async fn update_memory(
+    async fn extend_memory(
         &self,
-        Parameters(UpdateMememoryRequest { content, memory_id }): Parameters<UpdateMememoryRequest>,
-    ) -> Result<CallToolResult, McpError> {
-        let parameters = generated::UpdateMemoryParameters {
-            memory_id,
+        Extension(parts): Extension<Parts>,
+        Parameters(ExtendMemoryRequest {
             content,
+            parent_memory_id,
+        }): Parameters<ExtendMemoryRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let parameters = generated::Memory {
+            content,
+            user_id: extract_user_id(parts),
+            parent_memory_id,
             ..Default::default()
         };
-        MemoryController::update_memory(parameters).await.unwrap();
+        MemoryController::add_memory(parameters).await.unwrap();
         Ok(CallToolResult::success(vec![]))
     }
 }
