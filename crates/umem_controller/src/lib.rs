@@ -38,11 +38,9 @@ impl MemoryController {
     pub async fn add_memory(memory: generated::Memory) -> Result<generated::Memory> {
         let memory_store = get_memory_store().await;
 
-        let now = chrono::Utc::now().timestamp();
         let memory = generated::Memory {
             memory_id: Uuid::new_v4().to_string(),
-            updated_at: now,
-            created_at: now,
+            created_at: chrono::Utc::now().timestamp(),
             ..memory
         };
 
@@ -80,14 +78,10 @@ impl MemoryController {
     ) -> Result<()> {
         let memory_store = get_memory_store().await;
 
-        let vectors = CFEmbeder
-            .generate_embedding(update_memory_parameters.content.as_str())
-            .await?;
-
         memory_store
             .update_point(
                 &update_memory_parameters.memory_id.clone(),
-                Some(vectors),
+                None,
                 Some(update_memory_parameters),
             )
             .await?;
@@ -118,7 +112,12 @@ impl MemoryController {
             .await?;
 
         let search_response = memory_store
-            .search_with_vector(vector, Some(10), &get_memories_by_query_parameters.user_id)
+            .search_with_vector(
+                vector,
+                Some(1),
+                &get_memories_by_query_parameters.user_id,
+                Some("created_at".into()),
+            )
             .await?;
 
         Ok(generated::MemoryBulk {
@@ -144,7 +143,7 @@ impl MemoryController {
                     "user_id".to_string(),
                     get_memories_by_user_id_parameters.user_id,
                 )],
-                None,
+                Some(1),
             )
             .await?;
 
@@ -158,5 +157,22 @@ impl MemoryController {
                 })
                 .collect::<Vec<_>>(),
         })
+    }
+
+    pub async fn get_memories_by_memory_id(memory_id: String) -> Result<generated::Memory> {
+        let memory_store = get_memory_store().await;
+
+        let search_response = memory_store
+            .search_with_payload(vec![("memory_id".to_string(), memory_id)], Some(1))
+            .await?;
+
+        Ok(serde_json::from_value(json!(
+            search_response
+                .result
+                .first()
+                .expect("Get by memory_id somehow failed")
+                .payload
+        ))
+        .expect("Payload to Memory parse failed."))
     }
 }

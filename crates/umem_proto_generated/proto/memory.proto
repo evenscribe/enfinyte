@@ -23,14 +23,13 @@ message Memory {
   int32 priority = 4;
   repeated string tags = 5;
   int64 created_at = 6;
-  int64 updated_at = 7;
+  string parent_memory_id = 7;
 }
 
 message MemoryBulk { repeated Memory memories = 1; }
 
 message UpdateMemoryParameters {
   string memory_id = 1;
-  string content = 2;
   int32 priority = 3;
   repeated string tags = 4;
 }

@@ -2,12 +2,12 @@ use anyhow::Result;
 use qdrant_client::{
     Payload, Qdrant,
     qdrant::{
-        Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeletePointsBuilder,
-        Distance, FieldType, Filter, HnswConfigDiffBuilder, KeywordIndexParamsBuilder, PointId,
-        PointStruct, PointVectors, PointsIdsList, QuantizationType, ScalarQuantizationBuilder,
-        ScrollPointsBuilder, ScrollResponse, SearchPointsBuilder, SearchResponse,
-        SetPayloadPointsBuilder, UpdatePointVectorsBuilder, UpsertPointsBuilder,
-        VectorParamsBuilder,
+        Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DatetimeRange,
+        DeletePointsBuilder, Distance, FieldType, Filter, HnswConfigDiffBuilder,
+        KeywordIndexParamsBuilder, PointId, PointStruct, PointVectors, PointsIdsList,
+        QuantizationType, ScalarQuantizationBuilder, ScrollPointsBuilder, ScrollResponse,
+        SearchPointsBuilder, SearchResponse, SetPayloadPointsBuilder, UpdatePointVectorsBuilder,
+        UpsertPointsBuilder, VectorParamsBuilder,
     },
 };
 use serde::Serialize;
@@ -101,14 +101,25 @@ impl QdrantVectorStore {
         Ok(())
     }
 
+    const SEARCH_LIMIT: &str = "15";
+
     pub async fn search_with_vector(
         &self,
         vector: Vec<f32>,
         limit: Option<u64>,
         user_id: &str,
+        order_key: Option<String>,
     ) -> Result<SearchResponse> {
-        let limit = limit.unwrap_or(10);
-        let search_result = self
+        let limit = if limit.is_some() {
+            limit.unwrap()
+        } else {
+            std::env::var("SEARCH_LIMIT")
+                .unwrap_or(Self::SEARCH_LIMIT.into())
+                .parse()
+                .unwrap()
+        };
+
+        let mut search_result = self
             .client
             .search_points(
                 SearchPointsBuilder::new(self.collection_name.as_str(), vector, limit)
@@ -119,6 +130,23 @@ impl QdrantVectorStore {
                     )])),
             )
             .await?;
+
+        if order_key.is_some() {
+            let order_key = order_key.unwrap();
+            search_result.result.sort_by(|one, other| {
+                let created_at_one = one
+                    .payload
+                    .get(&order_key)
+                    .and_then(|v| v.as_integer())
+                    .unwrap_or(0);
+                let created_at_other = other
+                    .payload
+                    .get(&order_key)
+                    .and_then(|v| v.as_integer())
+                    .unwrap_or(0);
+                created_at_one.cmp(&created_at_other)
+            });
+        }
 
         Ok(search_result)
     }
