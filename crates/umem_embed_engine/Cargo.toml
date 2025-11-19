@@ -1,0 +1,18 @@
+[package]
+name = "umem_embed_engine"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "umem_embed_engine_core"
+path = "src/lib.rs"
+
+[[bin]]
+name = "umem_embed_engine_cli"
+path = "src/cli.rs"
+
+[dependencies]
+ada-url = "3.3.0"
+anyhow.workspace = true
+reqwest.workspace = true
+rustc-hash = { version = "2.1" }
