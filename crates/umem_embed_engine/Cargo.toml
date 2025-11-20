@@ -14,5 +14,8 @@ path = "src/cli.rs"
 [dependencies]
 ada-url = "3.3.0"
 anyhow.workspace = true
+lazy_static.workspace = true
+regex = "1.12.2"
 reqwest.workspace = true
 rustc-hash = { version = "2.1" }
+yaml-rust2 = "0.10.4"
