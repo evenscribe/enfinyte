@@ -9,13 +9,13 @@ use rmcp::{
     model::{ErrorData as McpError, *},
     schemars, tool, tool_handler, tool_router,
 };
+use std::future::Future;
 use tracing::debug;
-use umem_controller::MemoryController;
-use umem_proto_generated::generated;
+use umem_controller::{CreateMemoryRequestBuilder, MemoryController};
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
 pub struct AddMemoryRequest {
-    pub text: String,
+    pub content: String,
 }
 
 #[derive(Debug, serde::Deserialize, schemars::JsonSchema)]
@@ -71,11 +71,11 @@ impl McpService {
     async fn add_memory(
         &self,
         Extension(parts): Extension<Parts>,
-        Parameters(AddMemoryRequest { text }): Parameters<AddMemoryRequest>,
+        Parameters(AddMemoryRequest { content }): Parameters<AddMemoryRequest>,
     ) -> Result<CallToolResult, McpError> {
-        debug!("add_memory tool called with text: {}", text);
+        debug!("add_memory tool called with text: {}", content);
         let user_id = extract_user_id(parts);
-        if text.is_empty() {
+        if content.is_empty() {
             return Err(McpError::new(
                 ErrorCode::INVALID_REQUEST,
                 "Memory content cannot be empty",
@@ -83,17 +83,13 @@ impl McpService {
             ));
         }
 
-        let memory = MemoryController::add_memory(generated::Memory {
-            user_id,
-            content: text,
-            ..Default::default()
-        })
-        .await
-        .unwrap();
+        let memory = MemoryController::create(CreateMemoryRequestBuilder::new(user_id, content))
+            .await
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent {
-                text: serde_json::to_string(&memory).unwrap(),
+                text: serde_json::to_string(&memory).expect("serializing memory should never fail"),
             }),
             None,
         )]))
@@ -107,17 +103,15 @@ impl McpService {
         &self,
         Extension(parts): Extension<Parts>,
     ) -> Result<CallToolResult, McpError> {
-        let parameters = generated::GetMemoriesByUserIdParameters {
-            user_id: extract_user_id(parts),
-        };
-        let memory_bulk: String = MemoryController::get_memories_by_user_id(parameters)
+        let user_id = extract_user_id(parts);
+        let memory_bulk: String = MemoryController::list(user_id)
             .await
-            .unwrap()
-            .memories
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
             .iter()
-            .map(|mem| serde_json::to_string(mem).unwrap())
+            .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
             .collect::<Vec<String>>()
             .join("\n");
+
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent { text: memory_bulk }),
             None,
@@ -132,11 +126,11 @@ impl McpService {
         &self,
         Parameters(GetMemoriesByIdRequest { memory_id }): Parameters<GetMemoriesByIdRequest>,
     ) -> Result<CallToolResult, McpError> {
-        let memory = MemoryController::get_memories_by_memory_id(memory_id)
+        let memory = MemoryController::get(memory_id)
             .await
-            .unwrap();
-        let text = serde_json::to_string(&memory).unwrap();
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
+        let text = serde_json::to_string(&memory).expect("serializing memory should never fail");
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent { text }),
             None,
@@ -144,24 +138,20 @@ impl McpService {
     }
 
     #[tool(
-        name = "get_memory_by_query",
+        name = "search",
         description = "Get memories for the current user related to a query. This tool enables targeted retrieval of specific memories from the persistence layer using semantic search capabilities. WHEN TO USE: (1) When responding to questions that may benefit from past context, (2) Before generating responses that should consider historical preferences or interactions, (3) When references to previous conversations are made, or (4) When topic-specific context would improve response quality. IMPLEMENTATION: The query parameter accepts natural language or keywords—umem automatically performs hybrid semantic and keyword matching to retrieve the most relevant memories. BEST PRACTICE: Use focused, specific queries rather than generic ones for better results. After retrieving memories, consider saving new insights with add_memory to maintain an up-to-date persistence layer."
     )]
-    async fn get_memory_by_query(
+    async fn search(
         &self,
         Extension(parts): Extension<Parts>,
         Parameters(GetMemoriesByQueryRequest { query }): Parameters<GetMemoriesByQueryRequest>,
     ) -> Result<CallToolResult, McpError> {
-        let parameters = generated::GetMemoriesByQueryParameters {
-            user_id: extract_user_id(parts),
-            query,
-        };
-        let memory_bulk: String = MemoryController::get_memories_by_query(parameters)
+        let user_id = extract_user_id(parts);
+        let memory_bulk: String = MemoryController::search(user_id, query)
             .await
-            .unwrap()
-            .memories
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
             .iter()
-            .map(|mem| serde_json::to_string(mem).unwrap())
+            .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
             .collect::<Vec<String>>()
             .join("\n");
         Ok(CallToolResult::success(vec![Annotated::new(
@@ -170,27 +160,28 @@ impl McpService {
         )]))
     }
 
-    #[tool(
-        name = "extend_memory",
-        description = "Create a new memory that extends or builds upon an existing memory by establishing a parent-child relationship. This tool enables hierarchical memory organization by linking new information to previously stored context. WHEN TO USE: (1) When adding follow-up information to an existing conversation thread, (2) When updating or expanding on previously saved user preferences or project details, (3) When creating memory chains that maintain chronological or logical relationships, or (4) When new information directly relates to or builds upon existing memories. IMPLEMENTATION: Provide the new content and the parent_memory_id of the existing memory you want to extend. This creates a linked memory structure that preserves context relationships and enables better retrieval of related information. BEST PRACTICE: Use this tool to maintain organized memory hierarchies rather than creating isolated memories for related information. This helps preserve conversation threads and project continuity across sessions."
-    )]
-    async fn extend_memory(
-        &self,
-        Extension(parts): Extension<Parts>,
-        Parameters(ExtendMemoryRequest {
-            content,
-            parent_memory_id,
-        }): Parameters<ExtendMemoryRequest>,
-    ) -> Result<CallToolResult, McpError> {
-        let parameters = generated::Memory {
-            content,
-            user_id: extract_user_id(parts),
-            parent_memory_id,
-            ..Default::default()
-        };
-        MemoryController::add_memory(parameters).await.unwrap();
-        Ok(CallToolResult::success(vec![]))
-    }
+    // TODO: revisit this
+    // #[tool(
+    //     name = "extend_memory",
+    //     description = "Create a new memory that extends or builds upon an existing memory by establishing a parent-child relationship. This tool enables hierarchical memory organization by linking new information to previously stored context. WHEN TO USE: (1) When adding follow-up information to an existing conversation thread, (2) When updating or expanding on previously saved user preferences or project details, (3) When creating memory chains that maintain chronological or logical relationships, or (4) When new information directly relates to or builds upon existing memories. IMPLEMENTATION: Provide the new content and the parent_memory_id of the existing memory you want to extend. This creates a linked memory structure that preserves context relationships and enables better retrieval of related information. BEST PRACTICE: Use this tool to maintain organized memory hierarchies rather than creating isolated memories for related information. This helps preserve conversation threads and project continuity across sessions."
+    // )]
+    // async fn extend_memory(
+    //     &self,
+    //     Extension(parts): Extension<Parts>,
+    //     Parameters(ExtendMemoryRequest {
+    //         content,
+    //         parent_memory_id,
+    //     }): Parameters<ExtendMemoryRequest>,
+    // ) -> Result<CallToolResult, McpError> {
+    //     let parameters = generated::Memory {
+    //         content,
+    //         user_id: extract_user_id(parts),
+    //         parent_memory_id,
+    //         ..Default::default()
+    //     };
+    //     MemoryController::add_memory(parameters).await.unwrap();
+    //     Ok(CallToolResult::success(vec![]))
+    // }
 }
 
 #[tool_handler]

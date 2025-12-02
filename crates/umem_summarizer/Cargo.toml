@@ -1,12 +1,11 @@
 [package]
 name = "umem_summarizer"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
 reqwest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

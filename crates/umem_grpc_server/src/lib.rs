@@ -1,9 +1,10 @@
 use anyhow::Result;
 use tonic::transport::Server;
 use tracing::info;
-use umem_proto_generated::generated;
+use umem_proto::generated;
 
-mod qdrant;
+mod service;
+use service::ServiceImpl;
 
 pub struct MemoryServiceGrpc;
 
@@ -13,7 +14,7 @@ impl MemoryServiceGrpc {
         info!("Memory gRPC Server listening on {}", addr);
         Server::builder()
             .add_service(generated::memory_service_server::MemoryServiceServer::new(
-                qdrant::QdrantServiceImpl,
+                ServiceImpl,
             ))
             .serve(addr)
             .await?;

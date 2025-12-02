@@ -90,6 +90,9 @@ package-lock.json
 package.json
 /src/doc/rustc-dev-guide/mermaid.min.js
 
+/storage
+.qdrant*
+
 ## Rustdoc GUI tests
 tests/rustdoc-gui/src/**.lock
 

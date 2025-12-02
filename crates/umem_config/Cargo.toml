@@ -1,0 +1,11 @@
+[package]
+name = "umem_config"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+config = { workspace = true }
+serde = { workspace = true }
+anyhow = { workspace = true }
+dirs = { workspace = true }
+lazy_static = { workspace = true }

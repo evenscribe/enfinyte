@@ -1,5 +1,4 @@
 use anyhow::Result;
-use dirs;
 use std::io;
 use std::path::PathBuf;
 use tracing_appender::non_blocking::WorkerGuard;
