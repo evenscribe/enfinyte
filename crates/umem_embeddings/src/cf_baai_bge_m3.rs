@@ -1,37 +1,25 @@
-use crate::{client, Embedder};
+use crate::client;
 use anyhow::{bail, Result};
-use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use umem_config::CONFIG;
 
 const CF_BAAI_BGE_M3_EMBEDER_NAME: &str = "@cf/baai/bge-m3";
 
-pub struct CfBaaiBgeM3Embeder {
-    model_name: &'static str,
-    account_id: String,
-    api_token: String,
-}
+pub struct CfBaaiBgeM3Embeder;
 
 impl CfBaaiBgeM3Embeder {
-    pub fn new(account_id: String, api_token: String) -> Self {
-        Self {
-            model_name: CF_BAAI_BGE_M3_EMBEDER_NAME,
-            account_id,
-            api_token,
-        }
-    }
-}
-
-#[async_trait]
-impl Embedder for CfBaaiBgeM3Embeder {
-    async fn generate_embedding<'em>(&self, text: &'em str) -> Result<Vec<f32>> {
+    pub async fn generate_embedding(text: &str) -> Result<Vec<f32>> {
         let url = format!(
             "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
-            self.account_id, self.model_name
+            CONFIG.cloudflare.account_id, CF_BAAI_BGE_M3_EMBEDER_NAME
         );
         let request_body = EmbeddingRequest { text: vec![text] };
         let response = client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", CONFIG.cloudflare.api_token),
+            )
             .json(&request_body)
             .send()
             .await?;
@@ -42,15 +30,18 @@ impl Embedder for CfBaaiBgeM3Embeder {
         Ok(std::mem::take(&mut embedding_response.result.data[0]))
     }
 
-    async fn generate_embeddings_bulk<'em>(&self, texts: Vec<&'em str>) -> Result<Vec<Vec<f32>>> {
+    pub async fn generate_embeddings_bulk(texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
         let url = format!(
             "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
-            self.account_id, self.model_name
+            CONFIG.cloudflare.account_id, CF_BAAI_BGE_M3_EMBEDER_NAME
         );
         let request_body = EmbeddingRequest { text: texts };
         let response = client
             .post(&url)
-            .header("Authorization", format!("Bearer {}", self.api_token))
+            .header(
+                "Authorization",
+                format!("Bearer {}", CONFIG.cloudflare.api_token),
+            )
             .json(&request_body)
             .send()
             .await?;

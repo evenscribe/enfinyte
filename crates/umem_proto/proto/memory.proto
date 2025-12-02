@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package memory_v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+service MemoryService {
+  rpc CreateMemory(CreateMemoryRequest) returns (google.protobuf.Empty);
+  // rpc CreateMemories(CreateMemoriesRequest) returns (google.protobuf.Empty);
+  rpc UpdateMemory(UpdateMemoryRequest) returns (google.protobuf.Empty);
+  rpc DeleteMemory(DeleteMemoryRequest) returns (google.protobuf.Empty);
+
+  rpc GetMemory(GetMemoryRequest) returns (Memory);
+  rpc ListMemories(ListMemoriesRequest) returns (ListMemoriesResponse);
+  rpc SearchMemories(SearchMemoriesRequest) returns (ListMemoriesResponse);
+}
+
+message Memory {
+  string id = 1;                       // Unique identifier for this memory
+  string user_id = 2;                  // Associated user/tenant
+  string content = 3;                  // Memory content
+  int64 created_at = 6;                // Creation timestamp
+  optional int32 priority = 4;         // Priority score
+  repeated string tags = 5;            // Optional tags
+  optional string parent_id = 7;       // Optional parent memory ID
+}
+
+message CreateMemoryRequest {
+  string user_id = 1;
+  string content = 2;
+  optional int32 priority = 3;
+  repeated string tags = 4;
+  optional string parent_id = 5;
+}
+
+// message CreateMemoriesRequest {
+//   repeated CreateMemoryRequest memories = 1;
+// }
+
+message UpdateMemoryRequest {
+  string id = 1;
+  optional int32 priority = 2;
+  repeated string tags = 3;
+  optional string content = 4;
+  optional string parent_id = 5;
+}
+
+message DeleteMemoryRequest {
+  string id = 1;
+}
+
+message GetMemoryRequest {
+  string id = 1;
+}
+
+message ListMemoriesRequest {
+  string user_id = 1;
+}
+
+message SearchMemoriesRequest {
+  string user_id = 1;
+  string query = 2;
+}
+
+message ListMemoriesResponse {
+  repeated Memory memories = 1;
+}

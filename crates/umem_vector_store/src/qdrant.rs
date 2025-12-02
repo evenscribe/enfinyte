@@ -1,0 +1,235 @@
+use crate::VectorStoreBase;
+use anyhow::Result;
+use anyhow::anyhow;
+use async_trait::async_trait;
+use qdrant_client::{
+    Payload,
+    qdrant::{
+        Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeletePointsBuilder,
+        Distance, FieldType, Filter, GetPointsBuilder, PointStruct, PointVectors, PointsIdsList,
+        Query, QueryPointsBuilder, RetrievedPoint, ScalarQuantizationBuilder, ScoredPoint,
+        ScrollPointsBuilder, SetPayloadPointsBuilder, UpdatePointVectorsBuilder,
+        UpsertPointsBuilder, UuidIndexParamsBuilder, VectorParamsBuilder,
+    },
+};
+use rustc_hash::FxHashMap;
+use serde_json::json;
+use std::iter::zip;
+use umem_config::CONFIG;
+use umem_proto::generated;
+
+pub struct Qdrant {
+    client: qdrant_client::Qdrant,
+    collection_name: String,
+    embedding_model_dims: u16,
+    chunk_size: u16,
+}
+
+impl Qdrant {
+    pub async fn new() -> Result<Self> {
+        let qdrant = CONFIG.vector_store.qdrant.clone().unwrap();
+        let client = qdrant_client::Qdrant::from_url(&qdrant.url)
+            .api_key(qdrant.key)
+            .build()?;
+
+        Ok(Self {
+            client,
+            collection_name: qdrant.collection_name,
+            embedding_model_dims: qdrant.embedding_model_dimensions,
+            chunk_size: qdrant.chunk_size,
+        })
+    }
+
+    async fn create_indexes(&self) -> Result<()> {
+        self.client
+            .create_field_index(
+                CreateFieldIndexCollectionBuilder::new(
+                    &self.collection_name,
+                    "user_id",
+                    FieldType::Uuid,
+                )
+                .field_index_params(UuidIndexParamsBuilder::default().is_tenant(true)),
+            )
+            .await?;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl VectorStoreBase for Qdrant {
+    async fn create_collection(&self) -> Result<()> {
+        self.client
+            .create_collection(
+                CreateCollectionBuilder::new(&self.collection_name)
+                    .vectors_config(VectorParamsBuilder::new(
+                        self.embedding_model_dims.into(),
+                        Distance::Cosine,
+                    ))
+                    .quantization_config(ScalarQuantizationBuilder::default()),
+            )
+            .await?;
+        self.create_indexes().await?;
+        Ok(())
+    }
+
+    async fn delete_collection(&self) -> Result<()> {
+        self.client.delete_collection(&self.collection_name).await?;
+        Ok(())
+    }
+
+    async fn reset(&self) -> Result<()> {
+        self.delete_collection().await?;
+        self.create_collection().await?;
+        Ok(())
+    }
+
+    async fn insert(&self, vectors: Vec<Vec<f32>>, payloads: Vec<generated::Memory>) -> Result<()> {
+        let points: Vec<PointStruct> = zip(vectors, payloads)
+            .map(|(vector, payload)| {
+                let point_id = payload.id.clone();
+                PointStruct::new(point_id.as_str(), vector, payload)
+            })
+            .collect();
+
+        self.client
+            .upsert_points_chunked(
+                UpsertPointsBuilder::new(&self.collection_name, points).wait(true),
+                self.chunk_size.into(),
+            )
+            .await?;
+        Ok(())
+    }
+
+    async fn get(&self, vector_id: &str) -> Result<generated::Memory> {
+        let result = self
+            .client
+            .get_points(
+                GetPointsBuilder::new(&self.collection_name, vec![vector_id.into()])
+                    .with_payload(true),
+            )
+            .await?
+            .result;
+
+        if result.is_empty() {
+            return Err(anyhow!("'get_points' couldn't find {vector_id}"));
+        }
+
+        let string = serde_json::to_string(&result[0].payload)?;
+        let memory: generated::Memory = serde_json::from_str(string.as_str())?;
+
+        Ok(memory)
+    }
+
+    async fn update(
+        &self,
+        vector_id: &str,
+        vector: Option<Vec<f32>>,
+        payload: Option<FxHashMap<String, serde_json::Value>>,
+    ) -> Result<()> {
+        if let Some(vector) = vector {
+            self.client
+                .update_vectors(UpdatePointVectorsBuilder::new(
+                    &self.collection_name,
+                    vec![PointVectors {
+                        id: Some(vector_id.into()),
+                        vectors: Some(vector.into()),
+                    }],
+                ))
+                .await?;
+        }
+
+        if let Some(payload) = payload {
+            self.client
+                .set_payload(
+                    SetPayloadPointsBuilder::new(
+                        &self.collection_name,
+                        Payload::try_from(json!(payload))?,
+                    )
+                    .points_selector(PointsIdsList {
+                        ids: vec![vector_id.into()],
+                    }),
+                )
+                .await?;
+        }
+        Ok(())
+    }
+
+    async fn delete(&self, vector_id: &str) -> Result<()> {
+        self.client
+            .delete_points(
+                DeletePointsBuilder::new(&self.collection_name)
+                    .points(PointsIdsList {
+                        ids: vec![vector_id.into()],
+                    })
+                    .wait(true),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn list(
+        &self,
+        filters: Option<FxHashMap<&str, String>>,
+        limit: u32,
+    ) -> Result<Vec<generated::Memory>> {
+        let mut scroll = ScrollPointsBuilder::new(&self.collection_name)
+            .limit(limit)
+            .with_payload(true);
+
+        if let Some(filters) = filters {
+            scroll = scroll.filter(Filter::must(
+                filters
+                    .into_iter()
+                    .map(|(field, value)| Condition::matches(field, value))
+                    .collect::<Vec<Condition>>(),
+            ));
+        }
+
+        Ok(self
+            .client
+            .scroll(scroll)
+            .await?
+            .result
+            .into_iter()
+            .map(|RetrievedPoint { payload, .. }| {
+                let string = serde_json::to_string(&payload)?;
+                let memory: generated::Memory = serde_json::from_str(&string)?;
+                Ok(memory)
+            })
+            .collect::<Result<_>>()?)
+    }
+
+    async fn search(
+        &self,
+        query_vector: Vec<f32>,
+        filters: Option<FxHashMap<&str, String>>,
+        limit: u64,
+    ) -> Result<Vec<generated::Memory>> {
+        let mut query = QueryPointsBuilder::new(&self.collection_name)
+            .query(Query::new_nearest(query_vector))
+            .limit(limit);
+
+        if let Some(filters) = filters {
+            query = query.filter(Filter::must(
+                filters
+                    .into_iter()
+                    .map(|(field, value)| Condition::matches(field, value))
+                    .collect::<Vec<Condition>>(),
+            ));
+        }
+
+        Ok(self
+            .client
+            .query(query)
+            .await?
+            .result
+            .into_iter()
+            .map(|ScoredPoint { payload, .. }| {
+                let string = serde_json::to_string(&payload)?;
+                let memory: generated::Memory = serde_json::from_str(&string)?;
+                Ok(memory)
+            })
+            .collect::<Result<_>>()?)
+    }
+}

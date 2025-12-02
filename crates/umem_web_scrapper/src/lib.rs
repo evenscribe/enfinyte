@@ -27,7 +27,7 @@ impl Scrapper {
             || html.contains("ray id")
         {
             tokio::time::sleep(Duration::from_secs(5)).await;
-            return Ok(Self::scrape_callback(url).await?);
+            return Self::scrape_callback(url).await;
         }
 
         Ok(html)

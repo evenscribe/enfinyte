@@ -6,8 +6,7 @@ edition = "2021"
 [dependencies]
 reqwest = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
 anyhow = { workspace = true }
-tokio = { workspace = true }
 lazy_static = { workspace = true }
 async-trait = "0.1.88"
+umem_config = { workspace = true }
