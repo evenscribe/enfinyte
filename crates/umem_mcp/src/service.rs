@@ -85,11 +85,11 @@ impl McpService {
 
         let memory = MemoryController::create(CreateMemoryRequestBuilder::new(user_id, content))
             .await
-            .unwrap();
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent {
-                text: serde_json::to_string(&memory).unwrap(),
+                text: serde_json::to_string(&memory).expect("serializing memory should never fail"),
             }),
             None,
         )]))
@@ -106,9 +106,9 @@ impl McpService {
         let user_id = extract_user_id(parts);
         let memory_bulk: String = MemoryController::list(user_id)
             .await
-            .unwrap()
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
             .iter()
-            .map(|mem| serde_json::to_string(mem).unwrap())
+            .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
             .collect::<Vec<String>>()
             .join("\n");
 
@@ -126,8 +126,11 @@ impl McpService {
         &self,
         Parameters(GetMemoriesByIdRequest { memory_id }): Parameters<GetMemoriesByIdRequest>,
     ) -> Result<CallToolResult, McpError> {
-        let memory = MemoryController::get(memory_id).await.unwrap();
-        let text = serde_json::to_string(&memory).unwrap();
+        let memory = MemoryController::get(memory_id)
+            .await
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+
+        let text = serde_json::to_string(&memory).expect("serializing memory should never fail");
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent { text }),
             None,
@@ -146,9 +149,9 @@ impl McpService {
         let user_id = extract_user_id(parts);
         let memory_bulk: String = MemoryController::search(user_id, query)
             .await
-            .unwrap()
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
             .iter()
-            .map(|mem| serde_json::to_string(mem).unwrap())
+            .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
             .collect::<Vec<String>>()
             .join("\n");
         Ok(CallToolResult::success(vec![Annotated::new(
