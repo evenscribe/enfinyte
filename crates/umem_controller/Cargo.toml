@@ -1,16 +1,13 @@
 [package]
 name = "umem_controller"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-tokio = { workspace = true }
 serde_json = { workspace = true }
-lazy_static = { workspace = true}
 umem_vector_store = { workspace = true}
 umem_embeddings = { workspace = true}
 umem_proto = { workspace = true}
-umem_config = { workspace = true}
 anyhow = { workspace = true }
 chrono = {workspace = true }
 uuid = { workspace = true }

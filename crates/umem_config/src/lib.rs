@@ -59,11 +59,14 @@ impl Default for AppConfig {
 
 impl AppConfig {
     pub fn new() -> Self {
-        let home = env!("HOME");
-        let config_path = home.to_owned() + "/.config/enfinyte/enfinyte.toml";
+        let home = dirs::home_dir().expect("Could not determine home directory");
+        let config_path = home.join(".config/enfinyte/enfinyte.toml");
+        let config_path = config_path
+            .to_str()
+            .expect("Config path contains invalid UTF-8");
 
         Config::builder()
-            .add_source(File::with_name(&config_path))
+            .add_source(File::with_name(config_path))
             .build()
             .unwrap_or_else(|e| panic!("{e}"))
             .try_deserialize::<Self>()

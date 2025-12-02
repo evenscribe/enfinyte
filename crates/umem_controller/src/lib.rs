@@ -34,6 +34,7 @@ impl MemoryController {
             None
         };
         let payload: FxHashMap<String, serde_json::Value> = [
+            request.content.map(|v| ("content".to_string(), v.into())),
             request.tags.map(|v| ("tags".to_string(), v.into())),
             request.priority.map(|v| ("priority".to_string(), v.into())),
             request

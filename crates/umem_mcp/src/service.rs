@@ -9,6 +9,7 @@ use rmcp::{
     model::{ErrorData as McpError, *},
     schemars, tool, tool_handler, tool_router,
 };
+use std::future::Future;
 use tracing::debug;
 use umem_controller::{CreateMemoryRequestBuilder, MemoryController};
 

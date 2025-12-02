@@ -58,6 +58,10 @@ impl Qdrant {
 #[async_trait]
 impl VectorStoreBase for Qdrant {
     async fn create_collection(&self) -> Result<()> {
+        if self.client.collection_exists(&self.collection_name).await? {
+            return Ok(());
+        }
+
         self.client
             .create_collection(
                 CreateCollectionBuilder::new(&self.collection_name)
@@ -208,7 +212,8 @@ impl VectorStoreBase for Qdrant {
     ) -> Result<Vec<generated::Memory>> {
         let mut query = QueryPointsBuilder::new(&self.collection_name)
             .query(Query::new_nearest(query_vector))
-            .limit(limit);
+            .limit(limit)
+            .with_payload(true);
 
         if let Some(filters) = filters {
             query = query.filter(Filter::must(

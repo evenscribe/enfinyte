@@ -1,21 +1,15 @@
 [package]
 name = "umem_vector_store"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [dependencies]
-umem_utils = { workspace = true }
 umem_config = { workspace = true }
 umem_proto = { workspace = true }
 anyhow = { workspace = true}
-lazy_static = { workspace = true}
-umem_embeddings = { workspace = true}
 qdrant-client= { workspace = true }
 serde_json = {workspace = true}
-chrono = {workspace = true}
 serde = {workspace = true}
-uuid = {workspace = true, features=["v4"]}
 rustc-hash = { workspace = true }
-tracing = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
