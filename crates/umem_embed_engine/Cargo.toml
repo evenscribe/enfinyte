@@ -14,8 +14,13 @@ path = "src/cli.rs"
 [dependencies]
 ada-url = "3.3.0"
 anyhow.workspace = true
+async-trait = "0.1.89"
+blake3 = "1.8.2"
 lazy_static.workspace = true
+lopdf = "0.38.0"
 regex = "1.12.2"
 reqwest.workspace = true
 rustc-hash = { version = "2.1" }
+text-splitter = {version= "0.28.0", features= ["tiktoken-rs"]}
+tiktoken-rs = "0.7.0"
 yaml-rust2 = "0.10.4"

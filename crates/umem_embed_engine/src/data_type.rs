@@ -1,6 +1,7 @@
 use crate::{engine::AddSource, reqwest_client};
 use ada_url::SchemeType;
 use anyhow::{Result, anyhow};
+use core::fmt;
 use lazy_static::lazy_static;
 use regex::Regex;
 use std::fs;
@@ -41,8 +42,51 @@ pub enum DataType {
     Github,
 }
 
+pub const DIRECT_DATA_TYPES: [DataType; 1] = [DataType::Text];
+
+// TODO: add all indirect data types
+pub const INDIRECT_DATA_TYPES: [DataType; 2] = [DataType::PdfFile, DataType::Json];
+
+impl fmt::Display for DataType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            DataType::YoutubeChannel => write!(f, "youtube_channel"),
+            DataType::GoogleDrive => write!(f, "google_drive"),
+            DataType::DocsSite => write!(f, "docs_site"),
+            DataType::PdfFile => write!(f, "pdf_file"),
+            DataType::TextFile => write!(f, "text_file"),
+            DataType::WebPage => write!(f, "web_page"),
+            DataType::Sitemap => write!(f, "sitemap"),
+            DataType::Csv => write!(f, "csv"),
+            DataType::Mdx => write!(f, "mdx"),
+            DataType::Docx => write!(f, "docx"),
+            DataType::Json => write!(f, "json"),
+            DataType::OpenApi => write!(f, "openapi"),
+            DataType::Audio => write!(f, "audio"),
+            DataType::Text => write!(f, "text"),
+            DataType::YoutubeVideo => write!(f, "youtube_video"),
+            DataType::Xml => write!(f, "xml"),
+            DataType::Notion => write!(f, "notion"),
+            DataType::QnaPair => write!(f, "qna_pair"),
+            DataType::Image => write!(f, "image"),
+            DataType::Unstructured => write!(f, "unstructured"),
+            DataType::Gmail => write!(f, "gmail"),
+            DataType::Substack => write!(f, "substack"),
+            DataType::Discord => write!(f, "discord"),
+            DataType::Custom => write!(f, "custom"),
+            DataType::RssFeed => write!(f, "rss_feed"),
+            DataType::Beehiiv => write!(f, "beehiiv"),
+            DataType::Directory => write!(f, "directory"),
+            DataType::Slack => write!(f, "slack"),
+            DataType::Dropbox => write!(f, "dropbox"),
+            DataType::ExcelFile => write!(f, "excel_file"),
+            DataType::Github => write!(f, "github"),
+        }
+    }
+}
+
 impl DataType {
-    async fn try_from(source: AddSource) -> Result<Self> {
+    pub async fn try_from_source(source: &AddSource) -> Result<Self> {
         match source {
             AddSource::Url(url) => detect_data_type_from_url(&url).await,
             AddSource::LocalFile(local_path) => detect_data_type_from_file(&local_path),

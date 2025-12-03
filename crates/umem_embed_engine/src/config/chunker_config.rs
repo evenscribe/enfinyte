@@ -2,10 +2,16 @@ use anyhow::{Result, anyhow};
 
 #[derive(Clone)]
 pub struct ChunkerConfig {
-    chunk_size: usize,
+    pub chunk_size: usize,
     chunk_overlap: usize,
     length_function: fn(String) -> usize,
-    min_chunk_size: usize,
+    pub min_chunk_size: usize,
+}
+
+impl Default for ChunkerConfig {
+    fn default() -> Self {
+        ChunkerConfigBuilder::new().build().unwrap()
+    }
 }
 
 // ---------------------------------------------------
@@ -81,4 +87,3 @@ impl ChunkerConfigBuilder {
         })
     }
 }
-
