@@ -7,9 +7,12 @@ edition = "2021"
 umem_config = { workspace = true }
 umem_proto = { workspace = true }
 anyhow = { workspace = true}
+tracing = { workspace = true}
+uuid = { workspace = true}
 qdrant-client= { workspace = true }
 serde_json = {workspace = true}
 serde = {workspace = true}
 rustc-hash = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
+sqlx = { workspace = true }

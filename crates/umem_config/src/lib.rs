@@ -1,4 +1,3 @@
-use anyhow::Result;
 use config::{Config, File};
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -26,10 +25,18 @@ pub struct Qdrant {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct VectorStore {
-    pub qdrant: Option<Qdrant>,
-    #[serde(skip)]
-    pub kind: String,
+pub struct PgVector {
+    pub url: String,
+    pub collection_name: String,
+    pub embedding_model_dimensions: u16,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum VectorStore {
+    #[serde(rename = "qdrant")]
+    Qdrant(Qdrant),
+    #[serde(rename = "pgvector")]
+    PgVector(PgVector),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -37,18 +44,6 @@ pub struct AppConfig {
     pub work_os: WorkOs,
     pub cloudflare: Cloudflare,
     pub vector_store: VectorStore,
-}
-
-impl AppConfig {
-    fn validate(mut self) -> Result<Self> {
-        if self.vector_store.qdrant.is_none() {
-            anyhow::bail!("At least one of the [vector_store.<backend>] must be set.");
-        }
-        if self.vector_store.qdrant.is_some() {
-            self.vector_store.kind = "qdrant".into();
-        }
-        Ok(self)
-    }
 }
 
 impl Default for AppConfig {
@@ -70,8 +65,6 @@ impl AppConfig {
             .build()
             .unwrap_or_else(|e| panic!("{e}"))
             .try_deserialize::<Self>()
-            .unwrap_or_else(|e| panic!("{e}"))
-            .validate()
             .unwrap_or_else(|e| panic!("{e}"))
     }
 }

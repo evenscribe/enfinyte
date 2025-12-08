@@ -1,9 +1,8 @@
 use crate::VectorStoreBase;
-use anyhow::Result;
 use anyhow::anyhow;
+use anyhow::Result;
 use async_trait::async_trait;
 use qdrant_client::{
-    Payload,
     qdrant::{
         Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeletePointsBuilder,
         Distance, FieldType, Filter, GetPointsBuilder, PointStruct, PointVectors, PointsIdsList,
@@ -11,11 +10,11 @@ use qdrant_client::{
         ScrollPointsBuilder, SetPayloadPointsBuilder, UpdatePointVectorsBuilder,
         UpsertPointsBuilder, UuidIndexParamsBuilder, VectorParamsBuilder,
     },
+    Payload,
 };
 use rustc_hash::FxHashMap;
 use serde_json::json;
 use std::iter::zip;
-use umem_config::CONFIG;
 use umem_proto::generated;
 
 pub struct Qdrant {
@@ -26,8 +25,7 @@ pub struct Qdrant {
 }
 
 impl Qdrant {
-    pub async fn new() -> Result<Self> {
-        let qdrant = CONFIG.vector_store.qdrant.clone().unwrap();
+    pub async fn new(qdrant: umem_config::Qdrant) -> Result<Self> {
         let client = qdrant_client::Qdrant::from_url(&qdrant.url)
             .api_key(qdrant.key)
             .build()?;
@@ -190,8 +188,7 @@ impl VectorStoreBase for Qdrant {
             ));
         }
 
-        Ok(self
-            .client
+        self.client
             .scroll(scroll)
             .await?
             .result
@@ -201,7 +198,7 @@ impl VectorStoreBase for Qdrant {
                 let memory: generated::Memory = serde_json::from_str(&string)?;
                 Ok(memory)
             })
-            .collect::<Result<_>>()?)
+            .collect()
     }
 
     async fn search(
@@ -224,8 +221,7 @@ impl VectorStoreBase for Qdrant {
             ));
         }
 
-        Ok(self
-            .client
+        self.client
             .query(query)
             .await?
             .result
@@ -235,6 +231,6 @@ impl VectorStoreBase for Qdrant {
                 let memory: generated::Memory = serde_json::from_str(&string)?;
                 Ok(memory)
             })
-            .collect::<Result<_>>()?)
+            .collect()
     }
 }

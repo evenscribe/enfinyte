@@ -1,29 +1,15 @@
+mod pgvector;
 mod qdrant;
+
 use anyhow::Result;
 use async_trait::async_trait;
+use pgvector::PgVector;
 use qdrant::Qdrant;
 use rustc_hash::FxHashMap;
-use serde::Deserialize;
-use std::convert::From;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 use umem_config::CONFIG;
 use umem_proto::generated;
-
-#[non_exhaustive]
-#[derive(Debug, Deserialize)]
-pub enum VectorStoreBackend {
-    Qdrant,
-}
-
-impl From<String> for VectorStoreBackend {
-    fn from(s: String) -> Self {
-        match s.trim().to_lowercase().as_str() {
-            "qdrant" => VectorStoreBackend::Qdrant,
-            other => panic!("Invalid store kind: '{}'", other),
-        }
-    }
-}
 
 static VECTOR_STORE: OnceCell<Arc<dyn VectorStoreBase + Send + Sync>> = OnceCell::const_new();
 
@@ -33,11 +19,16 @@ impl VectorStore {
     pub async fn get_store() -> Result<Arc<dyn VectorStoreBase + Send + Sync>> {
         VECTOR_STORE
             .get_or_try_init(|| async {
-                match CONFIG.vector_store.kind.clone().into() {
-                    VectorStoreBackend::Qdrant => {
-                        let qdrant = Qdrant::new().await?;
+                match CONFIG.vector_store.clone() {
+                    umem_config::VectorStore::Qdrant(qdrant) => {
+                        let qdrant = Qdrant::new(qdrant).await?;
                         qdrant.create_collection().await?;
                         Ok(Arc::new(qdrant) as Arc<dyn VectorStoreBase + Send + Sync>)
+                    }
+                    umem_config::VectorStore::PgVector(pgvector) => {
+                        let pgvector = PgVector::new(pgvector).await?;
+                        pgvector.create_collection().await?;
+                        Ok(Arc::new(pgvector) as Arc<dyn VectorStoreBase + Send + Sync>)
                     }
                 }
             })
