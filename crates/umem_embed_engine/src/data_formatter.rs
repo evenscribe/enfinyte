@@ -35,6 +35,10 @@ impl DataFormatter {
         })
     }
 
+    pub fn get_data_type(&self) -> DataType {
+        self.chunker.get_data_type()
+    }
+
     pub(crate) async fn create_chunks(
         &self,
         source: &AddSource,

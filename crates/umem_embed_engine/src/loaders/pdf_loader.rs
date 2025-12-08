@@ -46,7 +46,7 @@ impl Loader for PdfLoader {
         let mut hash_content = all_text_contents.join(" ");
         hash_content.push_str(&source.to_string());
 
-        let doc_id = blake3::hash(hash_content.as_bytes()).to_string();
+        let doc_id = blake3::hash(hash_content.as_bytes()).to_hex().to_string();
 
         Ok(LoadDataResult { doc_id, data })
     }
@@ -85,4 +85,3 @@ impl PdfLoader {
         PdfLoader
     }
 }
-

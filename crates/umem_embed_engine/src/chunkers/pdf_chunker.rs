@@ -5,9 +5,6 @@ use crate::{
 };
 use anyhow::Result;
 use text_splitter::{ChunkConfig, TextSplitter};
-// Can also use anything else that implements the ChunkSizer
-// trait from the text_splitter crate.
-use tiktoken_rs::cl100k_base;
 
 pub struct PdfChunker {
     config: ChunkerConfig,

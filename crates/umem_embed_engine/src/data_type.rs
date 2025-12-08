@@ -88,8 +88,8 @@ impl fmt::Display for DataType {
 impl DataType {
     pub async fn try_from_source(source: &AddSource) -> Result<Self> {
         match source {
-            AddSource::Url(url) => detect_data_type_from_url(&url).await,
-            AddSource::LocalFile(local_path) => detect_data_type_from_file(&local_path),
+            AddSource::Url(url) => detect_data_type_from_url(url).await,
+            AddSource::LocalFile(local_path) => detect_data_type_from_file(local_path),
         }
     }
 }
@@ -111,9 +111,7 @@ fn detect_data_type_from_file(local_path: &str) -> Result<DataType> {
                 )
             })?;
 
-            if let Err(e) = is_valid_openapi_yaml(&file_content) {
-                return Err(e);
-            }
+            let _: () = is_valid_openapi_yaml(&file_content)?;
 
             Ok(DataType::OpenApi)
         }
@@ -220,9 +218,7 @@ async fn detect_data_type_from_url(url: &str) -> Result<DataType> {
             )
         })?;
 
-        if let Err(e) = is_valid_openapi_yaml(&yaml_content_body) {
-            return Err(e);
-        }
+        let _: () = is_valid_openapi_yaml(&yaml_content_body)?;
 
         Ok(DataType::OpenApi)
     } else if url.pathname().ends_with(".json") {
