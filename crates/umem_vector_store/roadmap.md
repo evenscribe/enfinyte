@@ -1,5 +1,7 @@
 # Implement a backend for all of these
 
+-- Add OR/AND 
+
 - **Azure AI Search**
   - Website: https://learn.microsoft.com/en-us/azure/search/
   - GitHub / SDK: Azure SDK for Python (Search Documents) – https://github.com/Azure/azure-sdk-for-python/tree/main/sdk/search/azure-search-documents
@@ -52,8 +54,6 @@
   - Website: https://opensearch.org/
   - GitHub: https://github.com/opensearch-project/OpenSearch
 
-- **PGVector (PostgreSQL extension)**
-  - GitHub: https://github.com/pgvector/pgvector :contentReference[oaicite:4]{index=4}
 
 - **Pinecone**
   - Website: https://www.pinecone.io/
@@ -89,3 +89,6 @@
 - **Qdrant**
   - Website: https://qdrant.tech/ :contentReference[oaicite:5]{index=5}
   - GitHub: https://github.com/qdrant/qdrant :contentReference[oaicite:6]{index=6}
+
+- **PGVector (PostgreSQL extension)**
+  - GitHub: https://github.com/pgvector/pgvector :contentReference[oaicite:4]{index=4}

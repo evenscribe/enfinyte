@@ -3,7 +3,7 @@ mod builders;
 use anyhow::Result;
 pub use builders::{CreateMemoryRequestBuilder, UpdateMemoryRequestBuilder};
 use rustc_hash::FxHashMap;
-use umem_embeddings::CfBaaiBgeM3Embeder;
+use umem_embeddings::Embedder;
 use umem_proto::generated;
 use umem_vector_store::VectorStore;
 
@@ -13,8 +13,9 @@ pub struct MemoryController;
 impl MemoryController {
     pub async fn create(request: CreateMemoryRequestBuilder) -> Result<generated::Memory> {
         let memory_store = VectorStore::get_store().await?;
+        let embedder = Embedder::get_embedder().await?;
         let memory: generated::Memory = request.build();
-        let vector = CfBaaiBgeM3Embeder::generate_embedding(&memory.content).await?;
+        let vector = embedder.generate_embedding(&memory.content).await?;
         memory_store
             .insert(vec![vector], vec![memory.clone()])
             .await?;
@@ -28,8 +29,9 @@ impl MemoryController {
 
     pub async fn update(request: UpdateMemoryRequestBuilder) -> Result<()> {
         let memory_store = VectorStore::get_store().await?;
+        let embedder = Embedder::get_embedder().await?;
         let vector = if let Some(content) = &request.content {
-            Some(CfBaaiBgeM3Embeder::generate_embedding(content).await?)
+            Some(embedder.generate_embedding(content).await?)
         } else {
             None
         };
@@ -63,8 +65,10 @@ impl MemoryController {
 
     pub async fn search(user_id: String, query: String) -> Result<Vec<generated::Memory>> {
         let memory_store = VectorStore::get_store().await?;
+        let embedder = Embedder::get_embedder().await?;
+
         let filters = FxHashMap::from_iter([("user_id", user_id)]);
-        let vector = CfBaaiBgeM3Embeder::generate_embedding(query.as_str()).await?;
+        let vector = embedder.generate_embedding(query.as_str()).await?;
         memory_store.search(vector, Some(filters), 1000).await
     }
 }

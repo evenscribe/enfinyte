@@ -6,6 +6,13 @@ use serde::Deserialize;
 pub struct Cloudflare {
     pub account_id: String,
     pub api_token: String,
+    pub model: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum Embedder {
+    #[serde(rename = "cloudflare")]
+    Cloudflare(Cloudflare),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -42,8 +49,8 @@ pub enum VectorStore {
 #[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub work_os: WorkOs,
-    pub cloudflare: Cloudflare,
     pub vector_store: VectorStore,
+    pub embedder: Embedder,
 }
 
 impl Default for AppConfig {

@@ -4293,9 +4293,11 @@ name = "umem_embeddings"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "async-trait",
  "lazy_static",
  "reqwest",
  "serde",
+ "tokio",
  "umem_config",
 ]
 

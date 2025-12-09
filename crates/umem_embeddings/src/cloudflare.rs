@@ -1,57 +1,7 @@
-use crate::client;
+use crate::{client, EmbedderBase};
 use anyhow::{bail, Result};
+use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
-use umem_config::CONFIG;
-
-const CF_BAAI_BGE_M3_EMBEDER_NAME: &str = "@cf/baai/bge-m3";
-
-pub struct CfBaaiBgeM3Embeder;
-
-impl CfBaaiBgeM3Embeder {
-    pub async fn generate_embedding(text: &str) -> Result<Vec<f32>> {
-        let url = format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
-            CONFIG.cloudflare.account_id, CF_BAAI_BGE_M3_EMBEDER_NAME
-        );
-        let request_body = EmbeddingRequest { text: vec![text] };
-        let response = client
-            .post(&url)
-            .header(
-                "Authorization",
-                format!("Bearer {}", CONFIG.cloudflare.api_token),
-            )
-            .json(&request_body)
-            .send()
-            .await?;
-        let mut embedding_response: EmbeddingResponse = response.json().await?;
-        if !embedding_response.success {
-            bail!("{:?}", embedding_response.errors);
-        }
-        Ok(std::mem::take(&mut embedding_response.result.data[0]))
-    }
-
-    pub async fn generate_embeddings_bulk(texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
-        let url = format!(
-            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
-            CONFIG.cloudflare.account_id, CF_BAAI_BGE_M3_EMBEDER_NAME
-        );
-        let request_body = EmbeddingRequest { text: texts };
-        let response = client
-            .post(&url)
-            .header(
-                "Authorization",
-                format!("Bearer {}", CONFIG.cloudflare.api_token),
-            )
-            .json(&request_body)
-            .send()
-            .await?;
-        let embedding_response: EmbeddingResponse = response.json().await?;
-        if !embedding_response.success {
-            bail!("{:?}", embedding_response.errors);
-        }
-        Ok(embedding_response.result.data)
-    }
-}
 
 #[derive(Serialize)]
 struct EmbeddingRequest<'em> {
@@ -68,4 +18,61 @@ struct EmbeddingResponse {
 #[derive(Deserialize)]
 struct EmbeddingResult {
     data: Vec<Vec<f32>>,
+}
+
+pub struct Cloudflare {
+    pub account_id: String,
+    pub api_token: String,
+    pub model: String,
+}
+
+impl Cloudflare {
+    pub fn new(config: umem_config::Cloudflare) -> Self {
+        Self {
+            account_id: config.account_id,
+            api_token: config.api_token,
+            model: config.model,
+        }
+    }
+}
+
+#[async_trait]
+impl EmbedderBase for Cloudflare {
+    async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
+        let url = format!(
+            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
+            self.account_id, self.model
+        );
+        let request_body = EmbeddingRequest { text: vec![text] };
+        let response = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .json(&request_body)
+            .send()
+            .await?;
+        let mut embedding_response: EmbeddingResponse = response.json().await?;
+        if !embedding_response.success {
+            bail!("{:?}", embedding_response.errors);
+        }
+        Ok(std::mem::take(&mut embedding_response.result.data[0]))
+    }
+
+    async fn generate_embeddings(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
+        let url = format!(
+            "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
+            self.account_id, self.model
+        );
+        let request_body = EmbeddingRequest { text: texts };
+        let response = client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.api_token))
+            .json(&request_body)
+            .send()
+            .await?;
+        let embedding_response: EmbeddingResponse = response.json().await?;
+        if !embedding_response.success {
+            bail!("{:?}", embedding_response.errors);
+        }
+        Ok(embedding_response.result.data)
+    }
 }
