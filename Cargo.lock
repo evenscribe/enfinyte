@@ -4251,6 +4251,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "umem_ai"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "mime",
+ "rustc-hash 2.1.1",
+]
+
+[[package]]
 name = "umem_config"
 version = "0.1.0"
 dependencies = [

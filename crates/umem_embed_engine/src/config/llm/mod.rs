@@ -20,8 +20,8 @@ pub struct LLMConfig {
     /// Maximum number of tokens to generate in the LLM's response
     /// Defaults to 1024
     max_tokens: usize,
-    // The LLM model-id to use
-    model_id: String,
+    // The LLM model to use
+    model: String,
     /// Controls the diversity of the LLM's output
     /// Values range from 0.0 to 1.0, Defaults to 1.0
     top_p: f32,
@@ -103,7 +103,7 @@ impl LLMConfig {
     }
 
     pub fn model_id(mut self, model_id: String) -> Self {
-        self.model_id = model_id;
+        self.model = model_id;
         self
     }
 
@@ -130,5 +130,11 @@ impl LLMConfig {
     pub fn deployment_name(mut self, name: String) -> Self {
         self.deployment_name = Some(name);
         self
+    }
+}
+
+impl Default for LLMConfig {
+    fn default() -> Self {
+        Self::new()
     }
 }
