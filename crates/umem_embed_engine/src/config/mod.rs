@@ -1,6 +1,7 @@
 mod add_config;
 mod chunker_config;
 mod engine_config;
+mod llm;
 mod loader_config;
 
 pub use add_config::AddConfig;
