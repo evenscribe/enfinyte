@@ -3,27 +3,18 @@ use crate::schemars;
 #[derive(schemars::JsonSchema, serde::Serialize, serde::Deserialize)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct Memory {
-    /// Unique identifier for this memory
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
-    /// Associated user/tenant
-    #[prost(string, tag = "2")]
-    pub user_id: ::prost::alloc::string::String,
-    /// Memory content
-    #[prost(string, tag = "3")]
-    pub content: ::prost::alloc::string::String,
-    /// Creation timestamp
+    #[prost(string, optional, tag = "2")]
+    pub user_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "3")]
+    pub run_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "4")]
+    pub agent_id: ::core::option::Option<::prost::alloc::string::String>,
+    #[prost(string, optional, tag = "5")]
+    pub thread: ::core::option::Option<::prost::alloc::string::String>,
     #[prost(int64, tag = "6")]
     pub created_at: i64,
-    /// Priority score
-    #[prost(int32, optional, tag = "4")]
-    pub priority: ::core::option::Option<i32>,
-    /// Optional tags
-    #[prost(string, repeated, tag = "5")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    /// Optional parent memory ID
-    #[prost(string, optional, tag = "7")]
-    pub parent_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateMemoryRequest {
@@ -31,25 +22,13 @@ pub struct CreateMemoryRequest {
     pub user_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub content: ::prost::alloc::string::String,
-    #[prost(int32, optional, tag = "3")]
-    pub priority: ::core::option::Option<i32>,
-    #[prost(string, repeated, tag = "4")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "5")]
-    pub parent_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct UpdateMemoryRequest {
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
-    #[prost(int32, optional, tag = "2")]
-    pub priority: ::core::option::Option<i32>,
-    #[prost(string, repeated, tag = "3")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "4")]
+    #[prost(string, optional, tag = "2")]
     pub content: ::core::option::Option<::prost::alloc::string::String>,
-    #[prost(string, optional, tag = "5")]
-    pub parent_id: ::core::option::Option<::prost::alloc::string::String>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteMemoryRequest {
@@ -190,7 +169,6 @@ pub mod memory_service_client {
                 .insert(GrpcMethod::new("memory_v1.MemoryService", "CreateMemory"));
             self.inner.unary(req, path, codec).await
         }
-        /// rpc CreateMemories(CreateMemoriesRequest) returns (google.protobuf.Empty);
         pub async fn update_memory(
             &mut self,
             request: impl tonic::IntoRequest<super::UpdateMemoryRequest>,
@@ -321,7 +299,6 @@ pub mod memory_service_server {
             &self,
             request: tonic::Request<super::CreateMemoryRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
-        /// rpc CreateMemories(CreateMemoriesRequest) returns (google.protobuf.Empty);
         async fn update_memory(
             &self,
             request: tonic::Request<super::UpdateMemoryRequest>,

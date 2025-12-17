@@ -1,6 +1,4 @@
-use crate::VectorStoreBase;
-use anyhow::anyhow;
-use anyhow::Result;
+use crate::{VectorStoreBase, VectorStoreError};
 use async_trait::async_trait;
 use qdrant_client::{
     qdrant::{
@@ -15,7 +13,8 @@ use qdrant_client::{
 use rustc_hash::FxHashMap;
 use serde_json::json;
 use std::iter::zip;
-use umem_proto::generated;
+use thiserror::Error;
+use umem_core::Memory;
 
 pub struct Qdrant {
     client: qdrant_client::Qdrant,
@@ -23,6 +22,23 @@ pub struct Qdrant {
     embedding_model_dims: u16,
     chunk_size: u16,
 }
+
+#[derive(Error, Debug)]
+pub enum QdrantError {
+    #[error("Point with ID '{0}' not found in collection")]
+    PointNotFound(String),
+
+    #[error("Qdrant client error: {0}")]
+    ClientError(#[from] qdrant_client::QdrantError),
+}
+
+impl From<qdrant_client::QdrantError> for VectorStoreError {
+    fn from(value: qdrant_client::QdrantError) -> Self {
+        Into::<QdrantError>::into(value).into()
+    }
+}
+
+type Result<T> = std::result::Result<T, QdrantError>;
 
 impl Qdrant {
     pub async fn new(qdrant: umem_config::Qdrant) -> Result<Self> {
@@ -55,7 +71,7 @@ impl Qdrant {
 
 #[async_trait]
 impl VectorStoreBase for Qdrant {
-    async fn create_collection(&self) -> Result<()> {
+    async fn create_collection(&self) -> crate::Result<()> {
         if self.client.collection_exists(&self.collection_name).await? {
             return Ok(());
         }
@@ -74,24 +90,28 @@ impl VectorStoreBase for Qdrant {
         Ok(())
     }
 
-    async fn delete_collection(&self) -> Result<()> {
+    async fn delete_collection(&self) -> crate::Result<()> {
         self.client.delete_collection(&self.collection_name).await?;
         Ok(())
     }
 
-    async fn reset(&self) -> Result<()> {
+    async fn reset(&self) -> crate::Result<()> {
         self.delete_collection().await?;
         self.create_collection().await?;
         Ok(())
     }
 
-    async fn insert(&self, vectors: Vec<Vec<f32>>, payloads: Vec<generated::Memory>) -> Result<()> {
-        let points: Vec<PointStruct> = zip(vectors, payloads)
-            .map(|(vector, payload)| {
-                let point_id = payload.id.clone();
-                PointStruct::new(point_id.as_str(), vector, payload)
-            })
-            .collect();
+    async fn insert<'a>(
+        &self,
+        vectors: Vec<Vec<f32>>,
+        payloads: Vec<&'a Memory>,
+    ) -> crate::Result<()> {
+        let mut points: Vec<PointStruct> = Vec::with_capacity(vectors.len());
+        for (vector, payload) in zip(vectors, payloads) {
+            let point_id = payload.get_id();
+            let payload = Payload::try_from(json!(payload))?;
+            points.push(PointStruct::new(point_id.to_string(), vector, payload));
+        }
 
         self.client
             .upsert_points_chunked(
@@ -102,7 +122,7 @@ impl VectorStoreBase for Qdrant {
         Ok(())
     }
 
-    async fn get(&self, vector_id: &str) -> Result<generated::Memory> {
+    async fn get(&self, vector_id: &str) -> crate::Result<Memory> {
         let result = self
             .client
             .get_points(
@@ -113,11 +133,11 @@ impl VectorStoreBase for Qdrant {
             .result;
 
         if result.is_empty() {
-            return Err(anyhow!("'get_points' couldn't find {vector_id}"));
+            return Err(QdrantError::PointNotFound(vector_id.to_string()))?;
         }
 
         let string = serde_json::to_string(&result[0].payload)?;
-        let memory: generated::Memory = serde_json::from_str(string.as_str())?;
+        let memory: Memory = serde_json::from_str(string.as_str())?;
 
         Ok(memory)
     }
@@ -127,7 +147,7 @@ impl VectorStoreBase for Qdrant {
         vector_id: &str,
         vector: Option<Vec<f32>>,
         payload: Option<FxHashMap<String, serde_json::Value>>,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         if let Some(vector) = vector {
             self.client
                 .update_vectors(UpdatePointVectorsBuilder::new(
@@ -156,7 +176,7 @@ impl VectorStoreBase for Qdrant {
         Ok(())
     }
 
-    async fn delete(&self, vector_id: &str) -> Result<()> {
+    async fn delete(&self, vector_id: &str) -> crate::Result<()> {
         self.client
             .delete_points(
                 DeletePointsBuilder::new(&self.collection_name)
@@ -174,7 +194,7 @@ impl VectorStoreBase for Qdrant {
         &self,
         filters: Option<FxHashMap<&str, String>>,
         limit: u32,
-    ) -> Result<Vec<generated::Memory>> {
+    ) -> crate::Result<Vec<Memory>> {
         let mut scroll = ScrollPointsBuilder::new(&self.collection_name)
             .limit(limit)
             .with_payload(true);
@@ -195,7 +215,7 @@ impl VectorStoreBase for Qdrant {
             .into_iter()
             .map(|RetrievedPoint { payload, .. }| {
                 let string = serde_json::to_string(&payload)?;
-                let memory: generated::Memory = serde_json::from_str(&string)?;
+                let memory: Memory = serde_json::from_str(&string)?;
                 Ok(memory)
             })
             .collect()
@@ -206,7 +226,7 @@ impl VectorStoreBase for Qdrant {
         query_vector: Vec<f32>,
         filters: Option<FxHashMap<&str, String>>,
         limit: u64,
-    ) -> Result<Vec<generated::Memory>> {
+    ) -> crate::Result<Vec<Memory>> {
         let mut query = QueryPointsBuilder::new(&self.collection_name)
             .query(Query::new_nearest(query_vector))
             .limit(limit)
@@ -228,7 +248,7 @@ impl VectorStoreBase for Qdrant {
             .into_iter()
             .map(|ScoredPoint { payload, .. }| {
                 let string = serde_json::to_string(&payload)?;
-                let memory: generated::Memory = serde_json::from_str(&string)?;
+                let memory: Memory = serde_json::from_str(&string)?;
                 Ok(memory)
             })
             .collect()

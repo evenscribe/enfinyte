@@ -3,17 +3,17 @@ mod token;
 
 use anyhow::Result;
 use axum::{
-    Json, Router,
     body::Body,
     extract::State,
     http::{HeaderValue, Request, StatusCode},
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
+    Json, Router,
 };
 use rmcp::transport::{
-    SseServer, StreamableHttpServerConfig, StreamableHttpService, sse_server::SseServerConfig,
-    streamable_http_server::session::local::LocalSessionManager,
+    sse_server::SseServerConfig, streamable_http_server::session::local::LocalSessionManager,
+    SseServer, StreamableHttpServerConfig, StreamableHttpService,
 };
 use serde_json::json;
 use std::{net::SocketAddr, sync::Arc, time::Duration};
@@ -22,7 +22,7 @@ use tower_http::{
     cors::{Any, CorsLayer},
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
-use tracing::{Level, error, info};
+use tracing::{error, info, Level};
 
 const BIND_ADDRESS: &str = "0.0.0.0:3000";
 const REMOTE_ADDRESS: &str = "https://m.evenscribe.com";

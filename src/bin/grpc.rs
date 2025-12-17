@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
     let grpc_handle =
         tokio::spawn(async move { MemoryServiceGrpc::run_server("0.0.0.0:5051").await });
 
-    let _ = grpc_handle.await?;
+    grpc_handle.await??;
 
     Ok(())
 }

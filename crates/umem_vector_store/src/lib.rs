@@ -1,15 +1,32 @@
 mod pgvector;
 mod qdrant;
 
-use anyhow::Result;
 use async_trait::async_trait;
-use pgvector::PgVector;
-use qdrant::Qdrant;
+use pgvector::{PgError, PgVector};
+use qdrant::{Qdrant, QdrantError};
 use rustc_hash::FxHashMap;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::OnceCell;
 use umem_config::CONFIG;
-use umem_proto::generated;
+use umem_core::Memory;
+
+#[derive(Error, Debug)]
+pub enum VectorStoreError {
+    #[error("qdrant client failed with: {0}")]
+    QdrantError(#[from] QdrantError),
+
+    #[error("pg client failed with: {0}")]
+    PgError(#[from] PgError),
+
+    #[error("uuid action failed: {0}")]
+    UuidError(#[from] uuid::Error),
+
+    #[error("serde action failed: {0}")]
+    SerdeError(#[from] serde_json::Error),
+}
+
+type Result<T> = std::result::Result<T, VectorStoreError>;
 
 static VECTOR_STORE: OnceCell<Arc<dyn VectorStoreBase + Send + Sync>> = OnceCell::const_new();
 
@@ -45,9 +62,9 @@ pub trait VectorStoreBase {
 
     async fn reset(&self) -> Result<()>;
 
-    async fn insert(&self, vectors: Vec<Vec<f32>>, payloads: Vec<generated::Memory>) -> Result<()>;
+    async fn insert<'a>(&self, vectors: Vec<Vec<f32>>, payloads: Vec<&'a Memory>) -> Result<()>;
 
-    async fn get(&self, vector_id: &str) -> Result<generated::Memory>;
+    async fn get(&self, vector_id: &str) -> Result<Memory>;
 
     async fn update(
         &self,
@@ -62,12 +79,12 @@ pub trait VectorStoreBase {
         &self,
         filters: Option<FxHashMap<&str, String>>,
         limit: u32,
-    ) -> Result<Vec<generated::Memory>>;
+    ) -> Result<Vec<Memory>>;
 
     async fn search(
         &self,
         query_vector: Vec<f32>,
         filters: Option<FxHashMap<&str, String>>,
         limit: u64,
-    ) -> Result<Vec<generated::Memory>>;
+    ) -> Result<Vec<Memory>>;
 }

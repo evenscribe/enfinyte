@@ -1,0 +1,12 @@
+[package]
+name = "umem_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+uuid = { workspace = true, features = ["serde"] }
+serde = { workspace = true }
+chrono = { workspace = true, features = ["serde"] }
+thiserror = { workspace = true }
+rustc-hash = { workspace = true }
+typed-builder = { workspace = true }

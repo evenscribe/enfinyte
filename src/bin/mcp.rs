@@ -9,7 +9,7 @@ async fn main() -> Result<()> {
 
     let mcp_handle = tokio::spawn(async move { umem_mcp::run_server().await });
 
-    let _ = mcp_handle.await?;
+    mcp_handle.await??;
 
     Ok(())
 }

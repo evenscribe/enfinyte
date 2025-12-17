@@ -6,4 +6,3 @@ impl Client {
         println!("Client setup complete.");
     }
 }
-

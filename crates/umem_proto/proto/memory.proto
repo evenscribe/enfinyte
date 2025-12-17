@@ -7,7 +7,6 @@ import "google/protobuf/timestamp.proto";
 
 service MemoryService {
   rpc CreateMemory(CreateMemoryRequest) returns (google.protobuf.Empty);
-  // rpc CreateMemories(CreateMemoriesRequest) returns (google.protobuf.Empty);
   rpc UpdateMemory(UpdateMemoryRequest) returns (google.protobuf.Empty);
   rpc DeleteMemory(DeleteMemoryRequest) returns (google.protobuf.Empty);
 
@@ -17,33 +16,22 @@ service MemoryService {
 }
 
 message Memory {
-  string id = 1;                       // Unique identifier for this memory
-  string user_id = 2;                  // Associated user/tenant
-  string content = 3;                  // Memory content
-  int64 created_at = 6;                // Creation timestamp
-  optional int32 priority = 4;         // Priority score
-  repeated string tags = 5;            // Optional tags
-  optional string parent_id = 7;       // Optional parent memory ID
+  string id = 1;
+  optional string user_id = 2;
+  optional string run_id = 3;
+  optional string agent_id = 4;
+  optional string thread = 5;
+  int64 created_at = 6;
 }
 
 message CreateMemoryRequest {
   string user_id = 1;
   string content = 2;
-  optional int32 priority = 3;
-  repeated string tags = 4;
-  optional string parent_id = 5;
 }
-
-// message CreateMemoriesRequest {
-//   repeated CreateMemoryRequest memories = 1;
-// }
 
 message UpdateMemoryRequest {
   string id = 1;
-  optional int32 priority = 2;
-  repeated string tags = 3;
-  optional string content = 4;
-  optional string parent_id = 5;
+  optional string content = 2;
 }
 
 message DeleteMemoryRequest {

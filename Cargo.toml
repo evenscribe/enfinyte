@@ -8,6 +8,7 @@ resolver = "3"
 members = ["crates/*"]
 
 [workspace.dependencies]
+umem_core = {path = "crates/umem_core"}
 umem_vector_store = {path = "crates/umem_vector_store"}
 umem_config = {path = "crates/umem_config"}
 umem_embeddings = {path = "crates/umem_embeddings"}
@@ -34,6 +35,8 @@ rustc-hash = "2.1.1"
 async-trait = "0.1.89"
 config = "0.15.19"
 sqlx = { version =  "0.8.6" , features = [ "postgres", "uuid", "runtime-tokio", "tls-native-tls" ]}
+thiserror = "2.0.17"
+typed-builder = "0.23.2"
 
 [dependencies]
 umem_grpc_server = { workspace = true }

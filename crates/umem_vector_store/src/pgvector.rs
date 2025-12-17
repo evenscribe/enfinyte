@@ -1,12 +1,12 @@
 use std::iter::zip;
 
-use crate::VectorStoreBase;
-use anyhow::Result;
+use crate::{VectorStoreBase, VectorStoreError};
 use async_trait::async_trait;
 use rustc_hash::FxHashMap;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, QueryBuilder, Row};
-use umem_proto::generated;
+use thiserror::Error;
+use umem_core::Memory;
 use uuid::Uuid;
 
 pub struct PgVector {
@@ -14,6 +14,20 @@ pub struct PgVector {
     collection_name: String,
     embedding_model_dimensions: u16,
 }
+
+#[derive(Error, Debug)]
+pub enum PgError {
+    #[error("Pg client error: {0}")]
+    ClientError(#[from] sqlx::Error),
+}
+
+impl From<sqlx::Error> for VectorStoreError {
+    fn from(value: sqlx::Error) -> Self {
+        Into::<PgError>::into(value).into()
+    }
+}
+
+type Result<T> = std::result::Result<T, PgError>;
 
 impl PgVector {
     pub async fn new(pgvector: umem_config::PgVector) -> Result<Self> {
@@ -32,7 +46,7 @@ impl PgVector {
 
 #[async_trait]
 impl VectorStoreBase for PgVector {
-    async fn create_collection(&self) -> Result<()> {
+    async fn create_collection(&self) -> crate::Result<()> {
         query(r#"CREATE EXTENSION IF NOT EXISTS vector"#)
             .execute(&self.client)
             .await?;
@@ -64,7 +78,7 @@ impl VectorStoreBase for PgVector {
         Ok(())
     }
 
-    async fn delete_collection(&self) -> Result<()> {
+    async fn delete_collection(&self) -> crate::Result<()> {
         query(&format!(r#"DROP TABLE IF EXISTS {}"#, self.collection_name))
             .execute(&self.client)
             .await?;
@@ -72,12 +86,16 @@ impl VectorStoreBase for PgVector {
         Ok(())
     }
 
-    async fn reset(&self) -> Result<()> {
+    async fn reset(&self) -> crate::Result<()> {
         self.delete_collection().await?;
         self.create_collection().await
     }
 
-    async fn insert(&self, vectors: Vec<Vec<f32>>, payloads: Vec<generated::Memory>) -> Result<()> {
+    async fn insert<'a>(
+        &self,
+        vectors: Vec<Vec<f32>>,
+        payloads: Vec<&'a Memory>,
+    ) -> crate::Result<()> {
         for (vector, payload) in zip(vectors, payloads) {
             query(&format!(
                 r#"INSERT INTO {}
@@ -86,7 +104,7 @@ impl VectorStoreBase for PgVector {
                     ($1, $2, $3)"#,
                 self.collection_name
             ))
-            .bind(Uuid::parse_str(&payload.id)?)
+            .bind(payload.get_id())
             .bind(vector)
             .bind(json!(payload))
             .execute(&self.client)
@@ -96,7 +114,7 @@ impl VectorStoreBase for PgVector {
         Ok(())
     }
 
-    async fn get(&self, vector_id: &str) -> Result<generated::Memory> {
+    async fn get(&self, vector_id: &str) -> crate::Result<Memory> {
         let result = query(&format!(
             r#"SELECT payload FROM {} WHERE id = $1"#,
             self.collection_name,
@@ -106,7 +124,7 @@ impl VectorStoreBase for PgVector {
         .await?;
 
         let payload: serde_json::Value = result.try_get(0)?;
-        let memory: generated::Memory = serde_json::from_value(payload)?;
+        let memory: Memory = serde_json::from_value(payload)?;
 
         Ok(memory)
     }
@@ -116,7 +134,7 @@ impl VectorStoreBase for PgVector {
         vector_id: &str,
         vector: Option<Vec<f32>>,
         payload: Option<FxHashMap<String, serde_json::Value>>,
-    ) -> Result<()> {
+    ) -> crate::Result<()> {
         if let Some(vector) = vector {
             query(&format!(
                 r#"UPDATE {} SET vector = $1 WHERE id = $2"#,
@@ -142,7 +160,7 @@ impl VectorStoreBase for PgVector {
         Ok(())
     }
 
-    async fn delete(&self, vector_id: &str) -> Result<()> {
+    async fn delete(&self, vector_id: &str) -> crate::Result<()> {
         query(&format!(
             r#"DELETE FROM {} WHERE id = $1"#,
             self.collection_name,
@@ -158,7 +176,7 @@ impl VectorStoreBase for PgVector {
         &self,
         filters: Option<FxHashMap<&str, String>>,
         limit: u32,
-    ) -> Result<Vec<generated::Memory>> {
+    ) -> crate::Result<Vec<Memory>> {
         let mut query = QueryBuilder::<Postgres>::new(format!(
             " SELECT payload FROM {} ",
             self.collection_name
@@ -184,7 +202,7 @@ impl VectorStoreBase for PgVector {
             .into_iter()
             .map(|row| {
                 let payload: serde_json::Value = row.try_get(0)?;
-                let memory: generated::Memory = serde_json::from_value(payload)?;
+                let memory: Memory = serde_json::from_value(payload)?;
                 Ok(memory)
             })
             .collect()
@@ -195,7 +213,7 @@ impl VectorStoreBase for PgVector {
         query_vector: Vec<f32>,
         filters: Option<FxHashMap<&str, String>>,
         limit: u64,
-    ) -> Result<Vec<generated::Memory>> {
+    ) -> crate::Result<Vec<Memory>> {
         let mut query = QueryBuilder::<Postgres>::new(format!(
             " SELECT payload, vector<=>'{:?}'::vector AS distance FROM {} ",
             query_vector, self.collection_name
@@ -222,7 +240,7 @@ impl VectorStoreBase for PgVector {
             .into_iter()
             .map(|row| {
                 let payload: serde_json::Value = row.try_get(0)?;
-                let memory: generated::Memory = serde_json::from_value(payload)?;
+                let memory: Memory = serde_json::from_value(payload)?;
                 Ok(memory)
             })
             .collect()
