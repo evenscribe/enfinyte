@@ -2,7 +2,7 @@ use anyhow::{bail, Result};
 use async_trait::async_trait;
 
 use crate::{
-    response_generators::{GenerateTextRequest, GenerateTextResponse},
+    response_generators::{GenerateTextError, GenerateTextRequest, GenerateTextResponse},
     GeneratesText,
 };
 
@@ -18,7 +18,7 @@ impl GeneratesText for AmazonBedrockProvider {
     async fn generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, reqwest::Error> {
+    ) -> Result<GenerateTextResponse, GenerateTextError> {
         unimplemented!()
     }
 }

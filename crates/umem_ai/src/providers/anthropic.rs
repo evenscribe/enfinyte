@@ -2,6 +2,7 @@ use anyhow::bail;
 use anyhow::Result;
 use async_trait::async_trait;
 
+use crate::response_generators::GenerateTextError;
 use crate::response_generators::GenerateTextRequest;
 use crate::response_generators::GenerateTextResponse;
 use crate::GeneratesText;
@@ -17,7 +18,7 @@ impl GeneratesText for AnthropicProvider {
     async fn generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, reqwest::Error> {
+    ) -> Result<GenerateTextResponse, GenerateTextError> {
         unimplemented!()
     }
 }

@@ -3,7 +3,7 @@ use crate::{
         AmazonBedrockProvider, AnthropicProvider, AzureOpenAIProvider, GoogleVertexAIProvider,
         OpenAIProvider, XAIProvider,
     },
-    response_generators::{GenerateTextRequest, GenerateTextResponse},
+    response_generators::{GenerateTextError, GenerateTextRequest, GenerateTextResponse},
 };
 use anyhow::Result;
 use async_trait::async_trait;
@@ -32,7 +32,7 @@ impl LLMProvider {
     pub(crate) async fn do_generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, reqwest::Error> {
+    ) -> Result<GenerateTextResponse, GenerateTextError> {
         match self {
             LLMProvider::OpenAI(provider) => provider.generate_text(request),
             LLMProvider::Anthropic(provider) => provider.generate_text(request),
@@ -50,7 +50,7 @@ pub trait GeneratesText {
     async fn generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, reqwest::Error>;
+    ) -> Result<GenerateTextResponse, GenerateTextError>;
 }
 
 impl From<OpenAIProvider> for LLMProvider {

@@ -1,5 +1,5 @@
 use crate::{
-    response_generators::{GenerateTextRequest, GenerateTextResponse},
+    response_generators::{GenerateTextError, GenerateTextRequest, GenerateTextResponse},
     GeneratesText, HashMap,
 };
 use anyhow::{bail, Result};
@@ -17,7 +17,7 @@ impl GeneratesText for AzureOpenAIProvider {
     async fn generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, reqwest::Error> {
+    ) -> Result<GenerateTextResponse, GenerateTextError> {
         unimplemented!()
     }
 }
