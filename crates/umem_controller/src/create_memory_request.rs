@@ -1,6 +1,6 @@
 use thiserror::Error;
 use typed_builder::TypedBuilder;
-use umem_core::Memory;
+use umem_core::{Memory, MemoryError};
 
 #[derive(Debug, Error)]
 pub enum CreateMemoryRequestError {
@@ -9,15 +9,18 @@ pub enum CreateMemoryRequestError {
 
     #[error("Content cannot be empty or whitespace")]
     MissingContent,
+
+    #[error("memory validation failed with: {0}")]
+    MemoryError(#[from] MemoryError),
 }
 
 #[derive(TypedBuilder)]
 pub struct CreateMemoryRequest {
-    #[builder(default, setter(strip_option))]
+    #[builder(default = None)]
     user_id: Option<String>,
-    #[builder(default, setter(strip_option))]
+    #[builder(default = None)]
     agent_id: Option<String>,
-    #[builder(default, setter(strip_option))]
+    #[builder(default = None)]
     run_id: Option<String>,
     raw_content: String,
 }
@@ -37,6 +40,7 @@ impl CreateMemoryRequest {
 
     pub fn build(self) -> Result<Memory, CreateMemoryRequestError> {
         self.validate()?;
-        todo!()
+        // TODO: update later
+        Ok(Memory::gen_dummy()?)
     }
 }

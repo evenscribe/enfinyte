@@ -1,8 +1,9 @@
 use tonic::{Code, Request, Response, Status};
-use umem_proto::generated::{
-    memory_service_server::MemoryService, CreateMemoryRequest, DeleteMemoryRequest,
-    GetMemoryRequest, ListMemoriesRequest, ListMemoriesResponse, Memory, SearchMemoriesRequest,
-    UpdateMemoryRequest,
+use umem_controller::MemoryController;
+use umem_proto::{
+    memory_service_server::MemoryService, ArchiveMemoryRequest, CreateMemoryRequest,
+    DeleteMemoryRequest, GetMemoryRequest, ListMemoriesRequest, MemoryListResponse, MemoryResponse,
+    SearchMemoriesRequest, UpdateMemoryRequest,
 };
 
 #[derive(Debug, Default)]
@@ -14,41 +15,66 @@ impl MemoryService for ServiceImpl {
         &self,
         request: Request<CreateMemoryRequest>,
     ) -> Result<Response<()>, Status> {
-        todo!()
+        let CreateMemoryRequest {
+            user_id,
+            raw_content,
+            agent_id,
+            run_id,
+        } = request.into_inner();
+
+        MemoryController::create(
+            umem_controller::CreateMemoryRequest::builder()
+                .raw_content(raw_content)
+                .user_id(user_id)
+                .agent_id(agent_id)
+                .run_id(run_id)
+                .build(),
+        )
+        .await
+        .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+
+        Ok(Response::new(()))
     }
 
     async fn update_memory(
         &self,
-        request: Request<UpdateMemoryRequest>,
+        _request: Request<UpdateMemoryRequest>,
+    ) -> Result<Response<()>, Status> {
+        todo!()
+    }
+
+    async fn archive_memory(
+        &self,
+        _request: Request<ArchiveMemoryRequest>,
     ) -> Result<Response<()>, Status> {
         todo!()
     }
 
     async fn delete_memory(
         &self,
-        request: Request<DeleteMemoryRequest>,
+        _request: Request<DeleteMemoryRequest>,
     ) -> Result<Response<()>, Status> {
         todo!()
     }
 
     async fn get_memory(
         &self,
-        request: Request<GetMemoryRequest>,
-    ) -> Result<Response<Memory>, Status> {
+        _request: Request<GetMemoryRequest>,
+    ) -> Result<Response<MemoryResponse>, Status> {
         todo!()
     }
 
     async fn list_memories(
         &self,
-        request: Request<ListMemoriesRequest>,
-    ) -> Result<Response<ListMemoriesResponse>, Status> {
+        _request: Request<ListMemoriesRequest>,
+    ) -> Result<Response<MemoryListResponse>, Status> {
         todo!()
     }
 
     async fn search_memories(
         &self,
-        request: Request<SearchMemoriesRequest>,
-    ) -> Result<Response<ListMemoriesResponse>, Status> {
+        _request: Request<SearchMemoriesRequest>,
+    ) -> Result<Response<MemoryListResponse>, Status> {
         todo!()
     }
 }

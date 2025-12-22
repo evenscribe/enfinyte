@@ -4368,15 +4368,9 @@ dependencies = [
 name = "umem_proto"
 version = "0.1.0"
 dependencies = [
- "chrono",
  "prost",
- "qdrant-client",
- "rmcp",
- "serde",
- "serde_json",
  "tonic",
  "tonic-build",
- "uuid",
 ]
 
 [[package]]
@@ -4402,6 +4396,7 @@ name = "umem_vector_store"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "chrono",
  "qdrant-client",
  "rustc-hash 2.1.1",
  "serde",

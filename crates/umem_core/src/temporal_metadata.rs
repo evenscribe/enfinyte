@@ -5,44 +5,35 @@ use thiserror::Error;
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum TemporalMetadataError {
     #[error("updated_at ({updated}) cannot be earlier than created_at ({created})")]
-    UpdatedBeforeCreated {
-        created: DateTime<Utc>,
-        updated: DateTime<Utc>,
-    },
+    UpdatedBeforeCreated { created: i64, updated: i64 },
 
     #[error("archived_at ({archived}) cannot be earlier than created_at ({created})")]
-    ArchivedBeforeCreated {
-        created: DateTime<Utc>,
-        archived: DateTime<Utc>,
-    },
+    ArchivedBeforeCreated { created: i64, archived: i64 },
 
     #[error("archived_at ({archived}) cannot be earlier than updated_at ({updated})")]
-    ArchivedBeforeUpdated {
-        archived: DateTime<Utc>,
-        updated: DateTime<Utc>,
-    },
+    ArchivedBeforeUpdated { archived: i64, updated: i64 },
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct TemporalMetadata {
-    created_at: DateTime<Utc>,
-    updated_at: Option<DateTime<Utc>>,
-    archived_at: Option<DateTime<Utc>>,
+    created_at: i64,
+    updated_at: Option<i64>,
+    archived_at: Option<i64>,
 }
 
 impl TemporalMetadata {
     pub fn new(created_at: DateTime<Utc>) -> Self {
         Self {
-            created_at,
+            created_at: created_at.timestamp(),
             updated_at: None,
             archived_at: None,
         }
     }
 
     pub fn with_times(
-        created_at: DateTime<Utc>,
-        updated_at: Option<DateTime<Utc>>,
-        archived_at: Option<DateTime<Utc>>,
+        created_at: i64,
+        updated_at: Option<i64>,
+        archived_at: Option<i64>,
     ) -> Result<Self, TemporalMetadataError> {
         if let Some(updated) = updated_at {
             if updated < created_at {
@@ -102,7 +93,7 @@ impl TemporalMetadata {
         Ok(())
     }
 
-    pub fn mark_updated(&mut self, time: DateTime<Utc>) -> Result<(), TemporalMetadataError> {
+    pub fn mark_updated(&mut self, time: i64) -> Result<(), TemporalMetadataError> {
         if time < self.created_at {
             return Err(TemporalMetadataError::UpdatedBeforeCreated {
                 created: self.created_at,
@@ -123,7 +114,7 @@ impl TemporalMetadata {
         Ok(())
     }
 
-    pub fn mark_archived(&mut self, time: DateTime<Utc>) -> Result<(), TemporalMetadataError> {
+    pub fn mark_archived(&mut self, time: i64) -> Result<(), TemporalMetadataError> {
         if time < self.created_at {
             return Err(TemporalMetadataError::ArchivedBeforeCreated {
                 created: self.created_at,
@@ -147,19 +138,19 @@ impl TemporalMetadata {
         self.archived_at.is_some()
     }
 
-    pub fn last_modified(&self) -> DateTime<Utc> {
+    pub fn last_modified(&self) -> i64 {
         self.updated_at.unwrap_or(self.created_at)
     }
 
-    pub fn created_at(&self) -> DateTime<Utc> {
+    pub fn created_at(&self) -> i64 {
         self.created_at
     }
 
-    pub fn updated_at(&self) -> Option<DateTime<Utc>> {
+    pub fn updated_at(&self) -> Option<i64> {
         self.updated_at
     }
 
-    pub fn archived_at(&self) -> Option<DateTime<Utc>> {
+    pub fn archived_at(&self) -> Option<i64> {
         self.archived_at
     }
 }

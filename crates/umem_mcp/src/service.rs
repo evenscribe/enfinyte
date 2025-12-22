@@ -85,7 +85,7 @@ impl McpService {
 
         let memory = MemoryController::create(
             CreateMemoryRequest::builder()
-                .user_id(user_id)
+                .user_id(Some(user_id))
                 .raw_content(content)
                 .build(),
         )

@@ -1,20 +1,22 @@
 use crate::{VectorStoreBase, VectorStoreError};
 use async_trait::async_trait;
+use chrono::{TimeZone, Utc};
 use qdrant_client::{
     qdrant::{
-        Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DeletePointsBuilder,
-        Distance, FieldType, Filter, GetPointsBuilder, PointStruct, PointVectors, PointsIdsList,
-        Query, QueryPointsBuilder, RetrievedPoint, ScalarQuantizationBuilder, ScoredPoint,
-        ScrollPointsBuilder, SetPayloadPointsBuilder, UpdatePointVectorsBuilder,
-        UpsertPointsBuilder, UuidIndexParamsBuilder, VectorParamsBuilder,
+        Condition, CreateCollectionBuilder, CreateFieldIndexCollectionBuilder, DatetimeRange,
+        DeletePointsBuilder, Distance, FieldType, Filter, GetPointsBuilder, PointStruct,
+        PointVectors, PointsIdsList, Query, QueryPointsBuilder, Range, RetrievedPoint,
+        ScalarQuantizationBuilder, ScoredPoint, ScrollPointsBuilder, SetPayloadPointsBuilder,
+        UpdatePointVectorsBuilder, UpsertPointsBuilder, UuidIndexParamsBuilder,
+        VectorParamsBuilder,
     },
     Payload,
 };
 use rustc_hash::FxHashMap;
 use serde_json::json;
-use std::iter::zip;
+use std::{iter::zip, time};
 use thiserror::Error;
-use umem_core::Memory;
+use umem_core::{LifecycleState, Memory};
 
 pub struct Qdrant {
     client: qdrant_client::Qdrant,
@@ -27,6 +29,9 @@ pub struct Qdrant {
 pub enum QdrantError {
     #[error("Point with ID '{0}' not found in collection")]
     PointNotFound(String),
+
+    #[error("Vector must be supplied for search.")]
+    VectorNotSupplied,
 
     #[error("Qdrant client error: {0}")]
     ClientError(#[from] qdrant_client::QdrantError),
@@ -66,6 +71,134 @@ impl Qdrant {
             )
             .await?;
         Ok(())
+    }
+
+    fn filter_include_archived(conds: &mut Vec<Condition>, query: &umem_core::Query) {
+        if !query.include_archived() {
+            conds.push(Condition::matches(
+                "lifecycle",
+                LifecycleState::Active.as_str().to_owned(),
+            ));
+        }
+    }
+
+    fn filter_context(conds: &mut Vec<Condition>, query: &umem_core::Query) {
+        if let Some(user_id) = query.context().user_id() {
+            conds.push(Condition::matches("context.user_id", user_id.to_string()));
+        }
+        if let Some(agent_id) = query.context().agent_id() {
+            conds.push(Condition::matches("context.agent_id", agent_id.to_string()));
+        }
+        if let Some(run_id) = query.context().run_id() {
+            conds.push(Condition::matches("context.run_id", run_id.to_string()));
+        }
+    }
+
+    fn filter_kinds(conds: &mut Vec<Condition>, query: &umem_core::Query) {
+        if let Some(kinds) = query.kinds() {
+            conds.push(Condition::matches(
+                "kind",
+                kinds
+                    .iter()
+                    .map(|kind| kind.as_str().to_string())
+                    .collect::<Vec<String>>(),
+            ));
+        }
+    }
+
+    fn filter_tags(conds: &mut Vec<Condition>, query: &umem_core::Query) {
+        if let Some(tags) = query.tags() {
+            conds.push(Condition::matches(
+                "content.tags[]",
+                tags.iter()
+                    .map(|tag| tag.to_owned())
+                    .collect::<Vec<String>>(),
+            ));
+        }
+    }
+
+    fn filter_temporal(conds: &mut Vec<Condition>, query: &umem_core::Query) {
+        if let Some(temporal) = query.temporal() {
+            if temporal.has_created_range() {
+                conds.push(Condition::datetime_range(
+                    "temporal.created_at",
+                    DatetimeRange {
+                        lt: temporal.created_range().1.map(|t| {
+                            let dt = Utc.timestamp_opt(t, 0).unwrap();
+                            let st: time::SystemTime = dt.into();
+                            st.into()
+                        }),
+                        gt: temporal.created_range().0.map(|t| {
+                            let dt = Utc.timestamp_opt(t, 0).unwrap();
+                            let st: time::SystemTime = dt.into();
+                            st.into()
+                        }),
+                        gte: None,
+                        lte: None,
+                    },
+                ));
+            }
+            if temporal.has_updated_range() {
+                conds.push(Condition::datetime_range(
+                    "temporal.updated_at",
+                    DatetimeRange {
+                        lt: temporal.updated_range().1.map(|t| {
+                            let dt = Utc.timestamp_opt(t, 0).unwrap();
+                            let st: time::SystemTime = dt.into();
+                            st.into()
+                        }),
+                        gt: temporal.updated_range().0.map(|t| {
+                            let dt = Utc.timestamp_opt(t, 0).unwrap();
+                            let st: time::SystemTime = dt.into();
+                            st.into()
+                        }),
+                        gte: None,
+                        lte: None,
+                    },
+                ));
+            }
+        }
+    }
+
+    fn filter_signals(conds: &mut Vec<Condition>, query: &umem_core::Query) {
+        if let Some(signal) = query.signals() {
+            if let Some(salience) = signal.min_salience() {
+                conds.push(Condition::range(
+                    "signals.salience",
+                    Range {
+                        lt: None,
+                        gt: Some(salience.into()),
+                        gte: None,
+                        lte: None,
+                    },
+                ));
+            }
+
+            if let Some(certainty) = signal.min_certainty() {
+                conds.push(Condition::range(
+                    "signals.certainty",
+                    Range {
+                        lt: None,
+                        gt: Some(certainty.into()),
+                        gte: None,
+                        lte: None,
+                    },
+                ));
+            }
+        }
+    }
+
+    fn create_filter(query: &umem_core::Query) -> Filter {
+        let mut conds = vec![];
+
+        Self::filter_include_archived(&mut conds, query);
+        Self::filter_context(&mut conds, query);
+        Self::filter_kinds(&mut conds, query);
+        Self::filter_tags(&mut conds, query);
+        Self::filter_temporal(&mut conds, query);
+        Self::filter_signals(&mut conds, query);
+
+        Filter::must(conds)
     }
 }
 
@@ -190,23 +323,12 @@ impl VectorStoreBase for Qdrant {
         Ok(())
     }
 
-    async fn list(
-        &self,
-        filters: Option<FxHashMap<&str, String>>,
-        limit: u32,
-    ) -> crate::Result<Vec<Memory>> {
+    async fn list(&self, query: umem_core::Query) -> crate::Result<Vec<Memory>> {
         let mut scroll = ScrollPointsBuilder::new(&self.collection_name)
-            .limit(limit)
+            .limit(query.limit())
             .with_payload(true);
 
-        if let Some(filters) = filters {
-            scroll = scroll.filter(Filter::must(
-                filters
-                    .into_iter()
-                    .map(|(field, value)| Condition::matches(field, value))
-                    .collect::<Vec<Condition>>(),
-            ));
-        }
+        scroll = scroll.filter(Qdrant::create_filter(&query));
 
         self.client
             .scroll(scroll)
@@ -221,28 +343,20 @@ impl VectorStoreBase for Qdrant {
             .collect()
     }
 
-    async fn search(
-        &self,
-        query_vector: Vec<f32>,
-        filters: Option<FxHashMap<&str, String>>,
-        limit: u64,
-    ) -> crate::Result<Vec<Memory>> {
-        let mut query = QueryPointsBuilder::new(&self.collection_name)
-            .query(Query::new_nearest(query_vector))
-            .limit(limit)
-            .with_payload(true);
-
-        if let Some(filters) = filters {
-            query = query.filter(Filter::must(
-                filters
-                    .into_iter()
-                    .map(|(field, value)| Condition::matches(field, value))
-                    .collect::<Vec<Condition>>(),
-            ));
+    async fn search(&self, query: umem_core::Query) -> crate::Result<Vec<Memory>> {
+        if query.vector().is_none() {
+            return Err(QdrantError::VectorNotSupplied)?;
         }
 
+        let mut query_builder = QueryPointsBuilder::new(&self.collection_name)
+            .query(Query::new_nearest(query.vector().unwrap().to_vec()))
+            .limit(query.limit().into())
+            .with_payload(true);
+
+        query_builder = query_builder.filter(Qdrant::create_filter(&query));
+
         self.client
-            .query(query)
+            .query(query_builder)
             .await?
             .result
             .into_iter()

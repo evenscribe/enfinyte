@@ -27,7 +27,7 @@ impl FromStr for MemoryKind {
     }
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub enum MemoryKind {
     #[default]
     Semantic, // general knowledge
@@ -42,13 +42,13 @@ pub enum MemoryKind {
 impl MemoryKind {
     pub const fn as_str(&self) -> &'static str {
         match self {
-            MemoryKind::Semantic => "semantic",
-            MemoryKind::Episodic => "episodic",
-            MemoryKind::Procedural => "procedural",
-            MemoryKind::Instruction => "instruction",
-            MemoryKind::Relational => "relational",
-            MemoryKind::Working => "working",
-            MemoryKind::Prospective => "prospective",
+            MemoryKind::Semantic => "Semantic",
+            MemoryKind::Episodic => "Episodic",
+            MemoryKind::Procedural => "Procedural",
+            MemoryKind::Instruction => "Instruction",
+            MemoryKind::Relational => "Relational",
+            MemoryKind::Working => "Working",
+            MemoryKind::Prospective => "Prospective",
         }
     }
 

@@ -9,7 +9,7 @@ use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::OnceCell;
 use umem_config::CONFIG;
-use umem_core::Memory;
+use umem_core::{Memory, Query};
 
 #[derive(Error, Debug)]
 pub enum VectorStoreError {
@@ -75,16 +75,7 @@ pub trait VectorStoreBase {
 
     async fn delete(&self, vector_id: &str) -> Result<()>;
 
-    async fn list(
-        &self,
-        filters: Option<FxHashMap<&str, String>>,
-        limit: u32,
-    ) -> Result<Vec<Memory>>;
+    async fn list(&self, query: Query) -> Result<Vec<Memory>>;
 
-    async fn search(
-        &self,
-        query_vector: Vec<f32>,
-        filters: Option<FxHashMap<&str, String>>,
-        limit: u64,
-    ) -> Result<Vec<Memory>>;
+    async fn search(&self, query: Query) -> Result<Vec<Memory>>;
 }

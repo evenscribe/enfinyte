@@ -1,3 +1,4 @@
+use chrono::Utc;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 use typed_builder::TypedBuilder;
@@ -10,14 +11,16 @@ pub mod memory_context;
 pub mod memory_kind;
 pub mod memory_signals;
 pub mod provenance;
+pub mod query;
 pub mod temporal_metadata;
 
+use crate::credence::{Credence, CredenceError};
 pub use crate::{
     lifecycle_state::*, memory_content::*, memory_context::*, memory_kind::*, memory_signals::*,
-    provenance::*, temporal_metadata::*,
+    provenance::*, query::*, temporal_metadata::*,
 };
 
-#[derive(Debug, Error, Clone, PartialEq)]
+#[derive(Debug, Error, Clone)]
 pub enum MemoryError {
     #[error("invalid memory kind: {0}")]
     MemoryKindError(#[from] ParseMemoryKindError),
@@ -30,6 +33,9 @@ pub enum MemoryError {
 
     #[error("invalid memory signals: {0}")]
     SignalsError(#[from] MemorySignalsError),
+
+    #[error("invalid credence: {0}")]
+    CredenceError(#[from] CredenceError),
 
     #[error("invalid provenance: {0}")]
     ProvenanceError(#[from] ProvenanceMethodError),
@@ -81,12 +87,12 @@ impl Memory {
     }
 
     pub fn mark_updated(&mut self, time: chrono::DateTime<chrono::Utc>) -> Result<()> {
-        self.temporal.mark_updated(time)?;
+        self.temporal.mark_updated(time.timestamp())?;
         Ok(())
     }
 
     pub fn archive(&mut self, time: chrono::DateTime<chrono::Utc>) -> Result<()> {
-        self.temporal.mark_archived(time)?;
+        self.temporal.mark_archived(time.timestamp())?;
         self.lifecycle = LifecycleState::Archived;
         Ok(())
     }
@@ -109,5 +115,24 @@ impl Memory {
 
     pub fn get_summary(&self) -> &String {
         self.content.summary()
+    }
+
+    pub fn gen_dummy() -> Result<Memory> {
+        Ok(Memory::builder()
+            .id(Uuid::new_v4())
+            .content(MemoryContent::new("content", vec![])?)
+            .context(MemoryContext::for_user("test")?)
+            .kind(MemoryKind::Working)
+            .signals(MemorySignals::new(
+                Credence::new(0.2)?,
+                Credence::new(0.3)?,
+            )?)
+            .provenance(Provenance {
+                origin: ProvenanceOrigin::User,
+                method: ProvenanceMethod::Direct,
+            })
+            .lifecycle(LifecycleState::Active)
+            .temporal(TemporalMetadata::new(Utc::now()))
+            .build())
     }
 }

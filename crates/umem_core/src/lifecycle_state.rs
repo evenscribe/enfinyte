@@ -9,7 +9,7 @@ pub struct ParseLifecycleStateError {
     pub input: String,
 }
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
 pub enum LifecycleState {
     #[default]
     Active,
@@ -31,6 +31,13 @@ impl FromStr for LifecycleState {
 }
 
 impl LifecycleState {
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Active => "Active",
+            Self::Archived => "Archived",
+        }
+    }
+
     pub fn is_active(&self) -> bool {
         matches!(self, LifecycleState::Active)
     }
