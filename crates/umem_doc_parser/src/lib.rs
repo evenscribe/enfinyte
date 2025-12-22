@@ -56,9 +56,8 @@ mod tests {
     use super::{Extractor, FileExtractionSource};
     use anyhow::Result;
     use lopdf::{
-        Document, Object, Stream,
         content::{Content, Operation},
-        dictionary,
+        dictionary, Document, Object, Stream,
     };
     use std::io::Write;
     use tempfile::{Builder, NamedTempFile};

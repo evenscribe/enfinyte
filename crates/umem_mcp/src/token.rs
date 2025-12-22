@@ -1,5 +1,5 @@
 use anyhow::Result;
-use jsonwebtoken::{DecodingKey, TokenData, decode_header};
+use jsonwebtoken::{decode_header, DecodingKey, TokenData};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]

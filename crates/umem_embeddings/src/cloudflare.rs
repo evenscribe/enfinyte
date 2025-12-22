@@ -1,7 +1,17 @@
 use crate::{client, EmbedderBase};
-use anyhow::{bail, Result};
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+pub enum CloudflareError {
+    #[error("text to embed cannot be empty.")]
+    EmptyText,
+
+    #[error("embedding failed: {0:?}")]
+    EmbeddingFailed(Vec<String>),
+}
 
 #[derive(Serialize)]
 struct EmbeddingRequest<'em> {
@@ -38,7 +48,10 @@ impl Cloudflare {
 
 #[async_trait]
 impl EmbedderBase for Cloudflare {
-    async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>> {
+    async fn generate_embedding(&self, text: &str) -> crate::Result<Vec<f32>> {
+        if text.trim().is_empty() {
+            Err(CloudflareError::EmptyText)?;
+        }
         let url = format!(
             "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
             self.account_id, self.model
@@ -52,12 +65,22 @@ impl EmbedderBase for Cloudflare {
             .await?;
         let mut embedding_response: EmbeddingResponse = response.json().await?;
         if !embedding_response.success {
-            bail!("{:?}", embedding_response.errors);
+            Err(CloudflareError::EmbeddingFailed(embedding_response.errors))?;
         }
+        if embedding_response.result.data.is_empty() {
+            Err(CloudflareError::EmbeddingFailed(vec!["No embedding data
+  returned"
+                .to_string()]))?;
+        }
+
         Ok(std::mem::take(&mut embedding_response.result.data[0]))
     }
 
-    async fn generate_embeddings(&self, texts: Vec<&str>) -> Result<Vec<Vec<f32>>> {
+    async fn generate_embeddings(&self, texts: Vec<&str>) -> crate::Result<Vec<Vec<f32>>> {
+        if texts.is_empty() || texts.iter().any(|text| text.trim().is_empty()) {
+            Err(CloudflareError::EmptyText)?;
+        }
+
         let url = format!(
             "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
             self.account_id, self.model
@@ -71,8 +94,15 @@ impl EmbedderBase for Cloudflare {
             .await?;
         let embedding_response: EmbeddingResponse = response.json().await?;
         if !embedding_response.success {
-            bail!("{:?}", embedding_response.errors);
+            Err(CloudflareError::EmbeddingFailed(embedding_response.errors))?;
         }
+
+        if embedding_response.result.data.is_empty() {
+            Err(CloudflareError::EmbeddingFailed(vec!["No embedding data
+  returned"
+                .to_string()]))?;
+        }
+
         Ok(embedding_response.result.data)
     }
 }

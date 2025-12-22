@@ -3,47 +3,134 @@ syntax = "proto3";
 package memory_v1;
 
 import "google/protobuf/empty.proto";
-import "google/protobuf/timestamp.proto";
 
-service MemoryService {
-  rpc CreateMemory(CreateMemoryRequest) returns (google.protobuf.Empty);
-  // rpc CreateMemories(CreateMemoriesRequest) returns (google.protobuf.Empty);
-  rpc UpdateMemory(UpdateMemoryRequest) returns (google.protobuf.Empty);
-  rpc DeleteMemory(DeleteMemoryRequest) returns (google.protobuf.Empty);
+// =============================================================================
+// Enums
+// =============================================================================
 
-  rpc GetMemory(GetMemoryRequest) returns (Memory);
-  rpc ListMemories(ListMemoriesRequest) returns (ListMemoriesResponse);
-  rpc SearchMemories(SearchMemoriesRequest) returns (ListMemoriesResponse);
+enum LifecycleState {
+  LIFECYCLE_STATE_UNSPECIFIED = 0;
+  LIFECYCLE_STATE_ACTIVE = 1;
+  LIFECYCLE_STATE_ARCHIVED = 2;
+}
+
+enum MemoryKind {
+  MEMORY_KIND_UNSPECIFIED = 0;
+  MEMORY_KIND_SEMANTIC = 1;
+  MEMORY_KIND_EPISODIC = 2;
+  MEMORY_KIND_PROCEDURAL = 3;
+  MEMORY_KIND_INSTRUCTION = 4;
+  MEMORY_KIND_RELATIONAL = 5;
+  MEMORY_KIND_WORKING = 6;
+  MEMORY_KIND_PROSPECTIVE = 7;
+}
+
+enum ProvenanceOrigin {
+  PROVENANCE_ORIGIN_UNSPECIFIED = 0;
+  PROVENANCE_ORIGIN_USER = 1;
+  PROVENANCE_ORIGIN_AGENT = 2;
+}
+
+// =============================================================================
+// Core Messages
+// =============================================================================
+
+message MemoryContext {
+  optional string user_id = 1;
+  optional string agent_id = 2;
+  optional string run_id = 3;
+}
+
+message MemoryContent {
+  string summary = 1;
+  repeated string tags = 2;
+}
+
+message MemorySignals {
+  float certainty = 1;
+  float salience = 2;
+}
+
+message TemporalMetadata {
+  int64 created_at = 1;
+  optional int64 updated_at = 2;
+  optional int64 archived_at = 3;
+}
+
+message ExtractedMethod {
+  string model = 1;
+  string prompt = 2;
+}
+
+message SummarizedMethod {
+  string model = 1;
+}
+
+message ProvenanceMethod {
+  oneof method {
+    bool direct = 1;
+    ExtractedMethod extracted = 2;
+    SummarizedMethod summarized = 3;
+  }
+}
+
+message Provenance {
+  ProvenanceOrigin origin = 1;
+  ProvenanceMethod method = 2;
 }
 
 message Memory {
-  string id = 1;                       // Unique identifier for this memory
-  string user_id = 2;                  // Associated user/tenant
-  string content = 3;                  // Memory content
-  int64 created_at = 6;                // Creation timestamp
-  optional int32 priority = 4;         // Priority score
-  repeated string tags = 5;            // Optional tags
-  optional string parent_id = 7;       // Optional parent memory ID
+  string id = 1;
+  MemoryContext context = 2;
+  LifecycleState lifecycle = 3;
+  MemoryKind kind = 4;
+  MemoryContent content = 5;
+  MemorySignals signals = 6;
+  TemporalMetadata temporal = 7;
+  Provenance provenance = 8;
 }
+
+// =============================================================================
+// Filter Messages
+// =============================================================================
+
+message ContextFilter {
+  optional string user_id = 1;
+  optional string agent_id = 2;
+  optional string run_id = 3;
+}
+
+message TemporalFilter {
+  optional int64 created_after = 1;
+  optional int64 created_before = 2;
+  optional int64 updated_after = 3;
+  optional int64 updated_before = 4;
+}
+
+message SignalFilter {
+  optional float min_certainty = 1;
+  optional float min_salience = 2;
+}
+
+// =============================================================================
+// Request Messages
+// =============================================================================
 
 message CreateMemoryRequest {
-  string user_id = 1;
-  string content = 2;
-  optional int32 priority = 3;
-  repeated string tags = 4;
-  optional string parent_id = 5;
+  optional string user_id = 1;
+  optional string agent_id = 2;
+  optional string run_id = 3;
+  string raw_content = 4;
 }
-
-// message CreateMemoriesRequest {
-//   repeated CreateMemoryRequest memories = 1;
-// }
 
 message UpdateMemoryRequest {
   string id = 1;
-  optional int32 priority = 2;
-  repeated string tags = 3;
-  optional string content = 4;
-  optional string parent_id = 5;
+  optional MemoryContent content = 2;
+  optional MemorySignals signals = 3;
+}
+
+message ArchiveMemoryRequest {
+  string id = 1;
 }
 
 message DeleteMemoryRequest {
@@ -55,14 +142,45 @@ message GetMemoryRequest {
 }
 
 message ListMemoriesRequest {
-  string user_id = 1;
+  ContextFilter context = 1;
+  uint32 limit = 2;
+  bool include_archived = 3;
 }
 
 message SearchMemoriesRequest {
-  string user_id = 1;
-  string query = 2;
+  string query = 1;
+  ContextFilter context = 2;
+  uint32 limit = 3;
+  bool include_archived = 4;
+  repeated MemoryKind kinds = 5;
+  repeated string tags = 6;
+  optional TemporalFilter temporal = 7;
+  optional SignalFilter signals = 8;
 }
 
-message ListMemoriesResponse {
+// =============================================================================
+// Response Messages
+// =============================================================================
+
+message MemoryResponse {
+  Memory memory = 1;
+}
+
+message MemoryListResponse {
   repeated Memory memories = 1;
+}
+
+// =============================================================================
+// Service
+// =============================================================================
+
+service MemoryService {
+  rpc CreateMemory(CreateMemoryRequest) returns (google.protobuf.Empty);
+  rpc UpdateMemory(UpdateMemoryRequest) returns (google.protobuf.Empty);
+  rpc ArchiveMemory(ArchiveMemoryRequest) returns (google.protobuf.Empty);
+  rpc DeleteMemory(DeleteMemoryRequest) returns (google.protobuf.Empty);
+
+  rpc GetMemory(GetMemoryRequest) returns (MemoryResponse);
+  rpc ListMemories(ListMemoriesRequest) returns (MemoryListResponse);
+  rpc SearchMemories(SearchMemoriesRequest) returns (MemoryListResponse);
 }

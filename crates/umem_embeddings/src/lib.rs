@@ -1,13 +1,22 @@
-use anyhow::Result;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use reqwest::Client;
 mod cloudflare;
-use cloudflare::Cloudflare;
+use cloudflare::{Cloudflare, CloudflareError};
 use umem_config::CONFIG;
 
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::OnceCell;
+
+#[derive(Debug, Error)]
+pub enum EmbedderError {
+    #[error("cloudflare embedder failed : {0}")]
+    CloudflareError(#[from] CloudflareError),
+
+    #[error("reqwest failed : {0}")]
+    ReqwestError(#[from] reqwest::Error),
+}
 
 lazy_static! {
     static ref client: Client = Client::new();
@@ -16,6 +25,8 @@ lazy_static! {
 static EMBEDDER: OnceCell<Arc<dyn EmbedderBase + Send + Sync>> = OnceCell::const_new();
 
 pub struct Embedder;
+
+type Result<T> = std::result::Result<T, EmbedderError>;
 
 impl Embedder {
     pub async fn get_embedder() -> Result<Arc<dyn EmbedderBase + Send + Sync>> {

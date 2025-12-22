@@ -1,9 +1,9 @@
 use tonic::{Code, Request, Response, Status};
-use umem_controller::{CreateMemoryRequestBuilder, MemoryController, UpdateMemoryRequestBuilder};
-use umem_proto::generated::{
-    memory_service_server::MemoryService, CreateMemoryRequest, DeleteMemoryRequest,
-    GetMemoryRequest, ListMemoriesRequest, ListMemoriesResponse, Memory, SearchMemoriesRequest,
-    UpdateMemoryRequest,
+use umem_controller::MemoryController;
+use umem_proto::{
+    memory_service_server::MemoryService, ArchiveMemoryRequest, CreateMemoryRequest,
+    DeleteMemoryRequest, GetMemoryRequest, ListMemoriesRequest, MemoryListResponse, MemoryResponse,
+    SearchMemoriesRequest, UpdateMemoryRequest,
 };
 
 #[derive(Debug, Default)]
@@ -15,87 +15,66 @@ impl MemoryService for ServiceImpl {
         &self,
         request: Request<CreateMemoryRequest>,
     ) -> Result<Response<()>, Status> {
-        let request = request.into_inner();
-        let builder = CreateMemoryRequestBuilder::new(request.user_id, request.content)
-            .priority(request.priority)
-            .tags(if request.tags.is_empty() {
-                None
-            } else {
-                Some(request.tags)
-            })
-            .parent_id(request.parent_id);
+        let CreateMemoryRequest {
+            user_id,
+            raw_content,
+            agent_id,
+            run_id,
+        } = request.into_inner();
 
-        MemoryController::create(builder)
-            .await
-            .map_err(|err| Status::new(Code::Unknown, err.to_string()))?;
+        MemoryController::create(
+            umem_controller::CreateMemoryRequest::builder()
+                .raw_content(raw_content)
+                .user_id(user_id)
+                .agent_id(agent_id)
+                .run_id(run_id)
+                .build(),
+        )
+        .await
+        .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+
         Ok(Response::new(()))
     }
 
     async fn update_memory(
         &self,
-        request: Request<UpdateMemoryRequest>,
+        _request: Request<UpdateMemoryRequest>,
     ) -> Result<Response<()>, Status> {
-        let request = request.into_inner();
-        let builder = UpdateMemoryRequestBuilder::new(request.id)
-            .priority(request.priority)
-            .content(request.content)
-            .tags(if request.tags.is_empty() {
-                None
-            } else {
-                Some(request.tags)
-            })
-            .parent_id(request.parent_id);
+        todo!()
+    }
 
-        MemoryController::update(builder)
-            .await
-            .map_err(|err| Status::new(Code::Unknown, err.to_string()))?;
-
-        Ok(Response::new(()))
+    async fn archive_memory(
+        &self,
+        _request: Request<ArchiveMemoryRequest>,
+    ) -> Result<Response<()>, Status> {
+        todo!()
     }
 
     async fn delete_memory(
         &self,
-        request: Request<DeleteMemoryRequest>,
+        _request: Request<DeleteMemoryRequest>,
     ) -> Result<Response<()>, Status> {
-        let request = request.into_inner();
-        let memory = MemoryController::delete(request.id)
-            .await
-            .map_err(|err| Status::new(Code::Unknown, err.to_string()))?;
-        Ok(Response::new(memory))
+        todo!()
     }
 
     async fn get_memory(
         &self,
-        request: Request<GetMemoryRequest>,
-    ) -> Result<Response<Memory>, Status> {
-        let request = request.into_inner();
-        let memory = MemoryController::get(request.id)
-            .await
-            .map_err(|err| Status::new(Code::Unknown, err.to_string()))?;
-        Ok(Response::new(memory))
+        _request: Request<GetMemoryRequest>,
+    ) -> Result<Response<MemoryResponse>, Status> {
+        todo!()
     }
 
     async fn list_memories(
         &self,
-        request: Request<ListMemoriesRequest>,
-    ) -> Result<Response<ListMemoriesResponse>, Status> {
-        let request = request.into_inner();
-        let memories = MemoryController::list(request.user_id)
-            .await
-            .map_err(|err| Status::new(Code::Unknown, err.to_string()))?;
-
-        Ok(Response::new(ListMemoriesResponse { memories }))
+        _request: Request<ListMemoriesRequest>,
+    ) -> Result<Response<MemoryListResponse>, Status> {
+        todo!()
     }
 
     async fn search_memories(
         &self,
-        request: Request<SearchMemoriesRequest>,
-    ) -> Result<Response<ListMemoriesResponse>, Status> {
-        let request = request.into_inner();
-        let memories = MemoryController::search(request.user_id, request.query)
-            .await
-            .map_err(|err| Status::new(Code::Unknown, err.to_string()))?;
-
-        Ok(Response::new(ListMemoriesResponse { memories }))
+        _request: Request<SearchMemoriesRequest>,
+    ) -> Result<Response<MemoryListResponse>, Status> {
+        todo!()
     }
 }

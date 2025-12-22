@@ -1,7 +1,7 @@
 use anyhow::Result;
 use tonic::transport::Server;
 use tracing::info;
-use umem_proto::generated;
+use umem_proto::memory_service_server::MemoryServiceServer;
 
 mod service;
 use service::ServiceImpl;
@@ -13,9 +13,7 @@ impl MemoryServiceGrpc {
         let addr = addr.parse()?;
         info!("Memory gRPC Server listening on {}", addr);
         Server::builder()
-            .add_service(generated::memory_service_server::MemoryServiceServer::new(
-                ServiceImpl,
-            ))
+            .add_service(MemoryServiceServer::new(ServiceImpl))
             .serve(addr)
             .await?;
         Ok(())
