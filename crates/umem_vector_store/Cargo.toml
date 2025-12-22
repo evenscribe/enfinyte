@@ -11,7 +11,6 @@ uuid = { workspace = true}
 qdrant-client= { workspace = true }
 serde_json = {workspace = true}
 serde = {workspace = true}
-rustc-hash = { workspace = true }
 async-trait = { workspace = true }
 tokio = { workspace = true }
 sqlx = { workspace = true }

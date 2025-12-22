@@ -100,93 +100,70 @@ impl McpService {
         )]))
     }
 
-    // #[tool(
-    //     name = "get_all_memory",
-    //     description = "Get all memories for the current user. Retrieves the user's persistent memory store containing important context, preferences, and historical interactions. This tool should be called at the beginning of conversations to load relevant contextual information and provide personalized responses based on past interactions. After using this information, remember to save new important details using add_memory."
-    // )]
-    // async fn get_all_memory(
-    //     &self,
-    //     Extension(parts): Extension<Parts>,
-    // ) -> Result<CallToolResult, McpError> {
-    //     let user_id = extract_user_id(parts);
-    //     let memory_bulk: String = MemoryController::list(user_id)
-    //         .await
-    //         .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
-    //         .iter()
-    //         .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
-    //         .collect::<Vec<String>>()
-    //         .join("\n");
+    #[tool(
+        name = "get_all_memory",
+        description = "Get all memories for the current user. Retrieves the user's persistent memory store containing important context, preferences, and historical interactions. This tool should be called at the beginning of conversations to load relevant contextual information and provide personalized responses based on past interactions. After using this information, remember to save new important details using add_memory."
+    )]
+    async fn get_all_memory(
+        &self,
+        Extension(parts): Extension<Parts>,
+    ) -> Result<CallToolResult, McpError> {
+        let user_id = extract_user_id(parts);
+        let memory_bulk: String = MemoryController::list_for_user(user_id)
+            .await
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+            .iter()
+            .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
+            .collect::<Vec<String>>()
+            .join("\n");
 
-    //     Ok(CallToolResult::success(vec![Annotated::new(
-    //         RawContent::Text(RawTextContent { text: memory_bulk }),
-    //         None,
-    //     )]))
-    // }
+        Ok(CallToolResult::success(vec![Annotated::new(
+            RawContent::Text(RawTextContent { text: memory_bulk }),
+            None,
+        )]))
+    }
 
-    // #[tool(
-    //     name = "get_memory_by_id",
-    //     description = "Retrieve a specific memory by its unique identifier. This tool provides direct access to individual memories in the persistence layer when you have the exact memory ID. WHEN TO USE: (1) When following parent_id references from other memories to reconstruct conversation threads, (2) When you need detailed information about a specific memory mentioned in search results, (3) When building complete context by traversing memory relationships, or (4) When referencing a known memory ID from previous operations. IMPLEMENTATION: Simply provide the memory_id parameter to retrieve the full memory object with all its metadata and content. This is particularly useful for expanding context when get_memory_by_query results contain parent_id fields that point to related memories. BEST PRACTICE: Use this tool in combination with get_memory_by_query to follow memory chains and build comprehensive understanding of user context and conversation history."
-    // )]
-    // async fn get_memory_by_id(
-    //     &self,
-    //     Parameters(GetMemoriesByIdRequest { memory_id }): Parameters<GetMemoriesByIdRequest>,
-    // ) -> Result<CallToolResult, McpError> {
-    //     let memory = MemoryController::get(memory_id)
-    //         .await
-    //         .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+    #[tool(
+        name = "get_memory_by_id",
+        description = "Retrieve a specific memory by its unique identifier. This tool provides direct access to individual memories in the persistence layer when you have the exact memory ID. WHEN TO USE: (1) When following parent_id references from other memories to reconstruct conversation threads, (2) When you need detailed information about a specific memory mentioned in search results, (3) When building complete context by traversing memory relationships, or (4) When referencing a known memory ID from previous operations. IMPLEMENTATION: Simply provide the memory_id parameter to retrieve the full memory object with all its metadata and content. This is particularly useful for expanding context when get_memory_by_query results contain parent_id fields that point to related memories. BEST PRACTICE: Use this tool in combination with get_memory_by_query to follow memory chains and build comprehensive understanding of user context and conversation history."
+    )]
+    async fn get_memory_by_id(
+        &self,
+        Parameters(GetMemoriesByIdRequest { memory_id }): Parameters<GetMemoriesByIdRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let memory = MemoryController::get(memory_id)
+            .await
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
-    //     let text = serde_json::to_string(&memory).expect("serializing memory should never fail");
-    //     Ok(CallToolResult::success(vec![Annotated::new(
-    //         RawContent::Text(RawTextContent { text }),
-    //         None,
-    //     )]))
-    // }
+        let text = serde_json::to_string(&memory).expect("serializing memory should never fail");
+        Ok(CallToolResult::success(vec![Annotated::new(
+            RawContent::Text(RawTextContent { text }),
+            None,
+        )]))
+    }
 
-    // #[tool(
-    //     name = "search",
-    //     description = "Get memories for the current user related to a query. This tool enables targeted retrieval of specific memories from the persistence layer using semantic search capabilities. WHEN TO USE: (1) When responding to questions that may benefit from past context, (2) Before generating responses that should consider historical preferences or interactions, (3) When references to previous conversations are made, or (4) When topic-specific context would improve response quality. IMPLEMENTATION: The query parameter accepts natural language or keywords—umem automatically performs hybrid semantic and keyword matching to retrieve the most relevant memories. BEST PRACTICE: Use focused, specific queries rather than generic ones for better results. After retrieving memories, consider saving new insights with add_memory to maintain an up-to-date persistence layer."
-    // )]
-    // async fn search(
-    //     &self,
-    //     Extension(parts): Extension<Parts>,
-    //     Parameters(GetMemoriesByQueryRequest { query }): Parameters<GetMemoriesByQueryRequest>,
-    // ) -> Result<CallToolResult, McpError> {
-    //     let user_id = extract_user_id(parts);
-    //     let memory_bulk: String = MemoryController::search(user_id, query)
-    //         .await
-    //         .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
-    //         .iter()
-    //         .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
-    //         .collect::<Vec<String>>()
-    //         .join("\n");
-    //     Ok(CallToolResult::success(vec![Annotated::new(
-    //         RawContent::Text(RawTextContent { text: memory_bulk }),
-    //         None,
-    //     )]))
-    // }
-
-    // // TODO: revisit this
-    // // #[tool(
-    // //     name = "extend_memory",
-    // //     description = "Create a new memory that extends or builds upon an existing memory by establishing a parent-child relationship. This tool enables hierarchical memory organization by linking new information to previously stored context. WHEN TO USE: (1) When adding follow-up information to an existing conversation thread, (2) When updating or expanding on previously saved user preferences or project details, (3) When creating memory chains that maintain chronological or logical relationships, or (4) When new information directly relates to or builds upon existing memories. IMPLEMENTATION: Provide the new content and the parent_memory_id of the existing memory you want to extend. This creates a linked memory structure that preserves context relationships and enables better retrieval of related information. BEST PRACTICE: Use this tool to maintain organized memory hierarchies rather than creating isolated memories for related information. This helps preserve conversation threads and project continuity across sessions."
-    // // )]
-    // // async fn extend_memory(
-    // //     &self,
-    // //     Extension(parts): Extension<Parts>,
-    // //     Parameters(ExtendMemoryRequest {
-    // //         content,
-    // //         parent_memory_id,
-    // //     }): Parameters<ExtendMemoryRequest>,
-    // // ) -> Result<CallToolResult, McpError> {
-    // //     let parameters = generated::Memory {
-    // //         content,
-    // //         user_id: extract_user_id(parts),
-    // //         parent_memory_id,
-    // //         ..Default::default()
-    // //     };
-    // //     MemoryController::add_memory(parameters).await.unwrap();
-    // //     Ok(CallToolResult::success(vec![]))
-    // // }
+    #[tool(
+        name = "search",
+        description = "Get memories for the current user related to a query. This tool enables targeted retrieval of specific memories from the persistence layer using semantic search capabilities. WHEN TO USE: (1) When responding to questions that may benefit from past context, (2) Before generating responses that should consider historical preferences or interactions, (3) When references to previous conversations are made, or (4) When topic-specific context would improve response quality. IMPLEMENTATION: The query parameter accepts natural language or keywords—umem automatically performs hybrid semantic and keyword matching to retrieve the most relevant memories. BEST PRACTICE: Use focused, specific queries rather than generic ones for better results. After retrieving memories, consider saving new insights with add_memory to maintain an up-to-date persistence layer."
+    )]
+    async fn search(
+        &self,
+        Extension(parts): Extension<Parts>,
+        Parameters(GetMemoriesByQueryRequest { query }): Parameters<GetMemoriesByQueryRequest>,
+    ) -> Result<CallToolResult, McpError> {
+        let user_id = extract_user_id(parts);
+        let memory_bulk: String = MemoryController::search_for_user(user_id, query)
+            .await
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+            .iter()
+            .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
+            .collect::<Vec<String>>()
+            .join("\n");
+        Ok(CallToolResult::success(vec![Annotated::new(
+            RawContent::Text(RawTextContent { text: memory_bulk }),
+            None,
+        )]))
+    }
 }
 
 #[tool_handler]

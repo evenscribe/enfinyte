@@ -1,23 +1,33 @@
 mod create_memory_request;
+mod update_memory_request;
 
-use rustc_hash::FxHashMap;
 use thiserror::Error;
-use umem_core::{ContextFilter, Memory, Query};
+use umem_core::{Memory, MemoryContext, MemoryContextError, Query};
 use umem_embeddings::{Embedder, EmbedderError};
 use umem_vector_store::{VectorStore, VectorStoreError};
 
 pub use create_memory_request::{CreateMemoryRequest, CreateMemoryRequestError};
+pub use update_memory_request::{UpdateMemoryRequest, UpdateMemoryRequestError};
 
 #[derive(Debug, Error)]
 pub enum MemoryControllerError {
-    #[error("creater memory failed with: {0}")]
+    #[error("memory context failed: {0}")]
+    MemoryContextError(#[from] MemoryContextError),
+
+    #[error("create memory failed with: {0}")]
     CreateMemoryError(#[from] CreateMemoryRequestError),
+
+    #[error("update memory failed with: {0}")]
+    UpdateMemoryError(#[from] UpdateMemoryRequestError),
 
     #[error("vector store action failed with: {0}")]
     VectorStoreError(#[from] VectorStoreError),
 
     #[error("embedder action failed with: {0}")]
     EmbedderError(#[from] EmbedderError),
+
+    #[error("context must have one of user_id, agent_id or run_id")]
+    EmptyContext,
 }
 
 #[derive(Debug, Default)]
@@ -40,47 +50,42 @@ impl MemoryController {
         Ok(vector_store.get(id.as_str()).await?)
     }
 
-    // pub async fn update(request: UpdateMemoryRequestBuilder) -> Result<()> {
-    //     let vector_store = VectorStore::get_store().await?;
-    //     let embedder = Embedder::get_embedder().await?;
-    //     let vector = if let Some(content) = &request.content {
-    //         Some(embedder.generate_embedding(content).await?)
-    //     } else {
-    //         None
-    //     };
-    //     let payload: FxHashMap<String, serde_json::Value> = [
-    //         request.content.map(|v| ("content".to_string(), v.into())),
-    //         request.tags.map(|v| ("tags".to_string(), v.into())),
-    //         request.priority.map(|v| ("priority".to_string(), v.into())),
-    //         request
-    //             .parent_id
-    //             .map(|v| ("parent_id".to_string(), v.into())),
-    //     ]
-    //     .into_iter()
-    //     .flatten()
-    //     .collect();
+    pub async fn update(request: UpdateMemoryRequest) -> Result<()> {
+        let vector_store = VectorStore::get_store().await?;
+        request.validate()?;
 
-    //     vector_store
-    //         .update(request.id.as_str(), vector, Some(payload))
-    //         .await
-    // }
+        let UpdateMemoryRequest {
+            vector_id,
+            vector,
+            memory,
+        } = request;
+
+        Ok(vector_store.update(&vector_id, vector, memory).await?)
+    }
 
     pub async fn delete(id: String) -> Result<()> {
         let vector_store = VectorStore::get_store().await?;
         Ok(vector_store.delete(id.as_str()).await?)
     }
 
-    pub async fn list(user_id: String) -> Result<Vec<Memory>> {
+    pub async fn list_for_user(user_id: String) -> Result<Vec<Memory>> {
         let vector_store = VectorStore::get_store().await?;
         let query = Query::builder()
-            .context(ContextFilter::for_user(user_id))
+            .context(MemoryContext::for_user(user_id)?)
             .limit(1000)
             .build();
 
         Ok(vector_store.list(query).await?)
     }
 
-    pub async fn search(user_id: String, query: String) -> Result<Vec<Memory>> {
+    pub async fn list_with_context(context: MemoryContext) -> Result<Vec<Memory>> {
+        let vector_store = VectorStore::get_store().await?;
+        let query = Query::builder().context(context).limit(1000).build();
+
+        Ok(vector_store.list(query).await?)
+    }
+
+    pub async fn search_for_user(user_id: String, query: String) -> Result<Vec<Memory>> {
         let vector_store = VectorStore::get_store().await?;
         let embedder = Embedder::get_embedder().await?;
 
@@ -88,7 +93,22 @@ impl MemoryController {
 
         let query = Query::builder()
             .vector(vector)
-            .context(ContextFilter::for_user(user_id))
+            .context(MemoryContext::for_user(user_id)?)
+            .limit(1000)
+            .build();
+
+        Ok(vector_store.search(query).await?)
+    }
+
+    pub async fn search_with_context(context: MemoryContext, query: String) -> Result<Vec<Memory>> {
+        let vector_store = VectorStore::get_store().await?;
+        let embedder = Embedder::get_embedder().await?;
+
+        let vector = embedder.generate_embedding(query.as_str()).await?;
+
+        let query = Query::builder()
+            .vector(vector)
+            .context(context)
             .limit(1000)
             .build();
 
