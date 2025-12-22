@@ -111,7 +111,7 @@ impl McpService {
         let user_id = extract_user_id(parts);
         let memory_bulk: String = MemoryController::list_for_user(user_id)
             .await
-            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?
             .iter()
             .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
             .collect::<Vec<String>>()
@@ -154,7 +154,7 @@ impl McpService {
         let user_id = extract_user_id(parts);
         let memory_bulk: String = MemoryController::search_for_user(user_id, query)
             .await
-            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?
             .iter()
             .map(|mem| serde_json::to_string(mem).expect("serializing memory should never fail"))
             .collect::<Vec<String>>()

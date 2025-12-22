@@ -6,6 +6,9 @@ use umem_core::Memory;
 pub enum UpdateMemoryRequestError {
     #[error("one of vector or memory should be passed")]
     EmptyUpdate,
+
+    #[error("vector id cannot be whitespace")]
+    InvalidVectorId,
 }
 
 #[derive(TypedBuilder)]
@@ -21,6 +24,9 @@ impl UpdateMemoryRequest {
     pub fn validate(&self) -> Result<(), UpdateMemoryRequestError> {
         if self.vector.is_none() && self.memory.is_none() {
             return Err(UpdateMemoryRequestError::EmptyUpdate);
+        }
+        if self.vector_id.trim().is_empty() {
+            return Err(UpdateMemoryRequestError::InvalidVectorId);
         }
         Ok(())
     }

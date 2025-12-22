@@ -25,9 +25,6 @@ pub enum MemoryControllerError {
 
     #[error("embedder action failed with: {0}")]
     EmbedderError(#[from] EmbedderError),
-
-    #[error("context must have one of user_id, agent_id or run_id")]
-    EmptyContext,
 }
 
 #[derive(Debug, Default)]
