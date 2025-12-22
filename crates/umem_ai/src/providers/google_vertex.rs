@@ -1,7 +1,6 @@
-use crate::HashMap;
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 
-pub struct GoogleVertexAIConfig {
+pub struct GoogleVertexAIProvider {
     pub project: String,
     pub location: String,
     pub headers: Vec<(String, String)>,
@@ -14,16 +13,16 @@ pub struct GoogleCredentials {
     private_key_id: Option<String>,
 }
 
-pub struct GoogleVertexAIConfigBuilder {
+pub struct GoogleVertexAIProviderBuilder {
     pub project: Option<String>,
     pub location: Option<String>,
     pub headers: Option<Vec<(String, String)>>,
     pub credentials: Option<GoogleCredentials>,
 }
 
-impl GoogleVertexAIConfigBuilder {
+impl GoogleVertexAIProviderBuilder {
     pub fn new() -> Self {
-        GoogleVertexAIConfigBuilder {
+        GoogleVertexAIProviderBuilder {
             project: None,
             location: None,
             headers: None,
@@ -46,12 +45,12 @@ impl GoogleVertexAIConfigBuilder {
         self.credentials = Some(credentials);
         self
     }
-    pub fn build(self) -> Result<GoogleVertexAIConfig> {
+    pub fn build(self) -> Result<GoogleVertexAIProvider> {
         if self.project.is_none() || self.location.is_none() || self.credentials.is_none() {
             bail!("project, location, and credentials are required");
         }
 
-        Ok(GoogleVertexAIConfig {
+        Ok(GoogleVertexAIProvider {
             project: self.project.unwrap(),
             location: self.location.unwrap(),
             headers: self.headers.unwrap_or_default(),

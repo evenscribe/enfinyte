@@ -1,20 +1,20 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
 
-pub struct XAIConfig {
+pub struct XAIProvider {
     pub api_key: String,
     pub base_url: String,
     pub headers: Vec<(String, String)>,
 }
 
-pub struct XAIConfigBuilder {
+pub struct XAIProviderBuilder {
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub headers: Option<Vec<(String, String)>>,
 }
 
-impl XAIConfigBuilder {
+impl XAIProviderBuilder {
     pub fn new() -> Self {
-        XAIConfigBuilder {
+        XAIProviderBuilder {
             api_key: None,
             base_url: None,
             headers: None,
@@ -32,12 +32,12 @@ impl XAIConfigBuilder {
         self.headers = Some(headers);
         self
     }
-    pub fn build(self) -> Result<XAIConfig> {
+    pub fn build(self) -> Result<XAIProvider> {
         if self.api_key.is_none() {
             bail!("api_key is required".to_string());
         }
 
-        Ok(XAIConfig {
+        Ok(XAIProvider {
             api_key: self.api_key.unwrap_or_default(),
             base_url: self
                 .base_url

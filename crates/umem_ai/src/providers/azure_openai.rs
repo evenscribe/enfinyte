@@ -1,7 +1,10 @@
-use crate::HashMap;
-use anyhow::{Result, bail};
-
-pub struct AzureOpenAIConfig {
+use crate::{
+    response_generators::{GenerateTextRequest, GenerateTextResponse},
+    GeneratesText, HashMap,
+};
+use anyhow::{bail, Result};
+use async_trait::async_trait;
+pub struct AzureOpenAIProvider {
     pub resource_name: Option<String>,
     pub api_key: String,
     pub api_version: String,
@@ -9,7 +12,17 @@ pub struct AzureOpenAIConfig {
     pub headers: Vec<(String, String)>,
 }
 
-pub struct AzureOpenAIConfigBuilder {
+#[async_trait]
+impl GeneratesText for AzureOpenAIProvider {
+    async fn generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, reqwest::Error> {
+        unimplemented!()
+    }
+}
+
+pub struct AzureOpenAIProviderBuilder {
     pub resource_name: Option<String>,
     pub api_key: Option<String>,
     pub api_version: Option<String>,
@@ -17,9 +30,9 @@ pub struct AzureOpenAIConfigBuilder {
     pub headers: Option<Vec<(String, String)>>,
 }
 
-impl AzureOpenAIConfigBuilder {
+impl AzureOpenAIProviderBuilder {
     pub fn new() -> Self {
-        AzureOpenAIConfigBuilder {
+        AzureOpenAIProviderBuilder {
             resource_name: None,
             api_key: None,
             api_version: None,
@@ -53,7 +66,7 @@ impl AzureOpenAIConfigBuilder {
         self
     }
 
-    pub fn build(mut self) -> Result<AzureOpenAIConfig> {
+    pub fn build(mut self) -> Result<AzureOpenAIProvider> {
         if self.api_key.is_none() {
             bail!("api_key is required");
         }
@@ -70,7 +83,7 @@ impl AzureOpenAIConfigBuilder {
             ));
         }
 
-        Ok(AzureOpenAIConfig {
+        Ok(AzureOpenAIProvider {
             resource_name: self.resource_name,
             api_key: self.api_key.unwrap(),
             api_version: self.api_version.unwrap_or("v1".to_string()),

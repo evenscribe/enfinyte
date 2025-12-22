@@ -1,19 +1,23 @@
+#[derive(Clone)]
 pub enum Message {
     System(String),
     User(UserModelMessage),
 }
 
+#[derive(Clone)]
 pub enum UserModelMessage {
     Text(String),
     Parts(Vec<UserMessagePart>),
 }
 
+#[derive(Clone)]
 pub enum UserMessagePart {
     Text(String),
     Image(FilePart),
     File(FilePart),
 }
 
+#[derive(Clone)]
 pub enum FilePart {
     Url(String, Option<mime::Mime>),
     Base64(String, Option<mime::Mime>),
@@ -55,15 +59,15 @@ impl From<FilePart> for UserMessagePart {
 }
 
 impl FilePart {
-    pub fn from_url(url: Into<String>, media_type: Option<Into<mime::Mime>>) -> Self {
-        FilePart::Url(url, media_type)
+    pub fn from_url<T: Into<String>>(url: T, media_type: Option<mime::Mime>) -> Self {
+        FilePart::Url(url.into(), media_type)
     }
 
-    pub fn from_base64(base64: Into<String>, media_type: Option<Into<mime::Mime>>) -> Self {
-        FilePart::Base64(base64, media_type)
+    pub fn from_base64<T: Into<String>>(base64: T, media_type: Option<mime::Mime>) -> Self {
+        FilePart::Base64(base64.into(), media_type)
     }
 
-    pub fn from_buffer(buffer: Into<Vec<u8>>, media_type: Option<Into<mime::Mime>>) -> Self {
-        FilePart::Buffer(buffer, media_type)
+    pub fn from_buffer<T: Into<Vec<u8>>>(buffer: T, media_type: Option<mime::Mime>) -> Self {
+        FilePart::Buffer(buffer.into(), media_type)
     }
 }

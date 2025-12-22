@@ -1,54 +1,90 @@
-use provider_configs::{
-    AmazonBedrockConfig, AnthropicConfig, AzureOpenAIConfig, GoogleVertexAIConfig, OpenAIConfig,
-    XAIConfig,
+use crate::{
+    providers::{
+        AmazonBedrockProvider, AnthropicProvider, AzureOpenAIProvider, GoogleVertexAIProvider,
+        OpenAIProvider, XAIProvider,
+    },
+    response_generators::{GenerateTextRequest, GenerateTextResponse},
 };
+use anyhow::Result;
+use async_trait::async_trait;
+use lazy_static::lazy_static;
 
-mod provider_configs;
+mod providers;
 mod response_generators;
+pub mod utils;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
-pub enum Provider {
-    OpenAI(OpenAIConfig),
-    AzureOpenAI(AzureOpenAIConfig),
-    GoogleVertexAI(GoogleVertexAIConfig),
-    Anthropic(AnthropicConfig),
-    XAI(XAIConfig),
-    AmazonBedrock(AmazonBedrockConfig),
+lazy_static! {
+    static ref reqwest_client: reqwest::Client = reqwest::Client::new();
 }
 
-impl From<OpenAIConfig> for Provider {
-    fn from(config: OpenAIConfig) -> Self {
-        Provider::OpenAI(config)
+pub enum LLMProvider {
+    OpenAI(OpenAIProvider),
+    AzureOpenAI(AzureOpenAIProvider),
+    GoogleVertexAI(GoogleVertexAIProvider),
+    Anthropic(AnthropicProvider),
+    XAI(XAIProvider),
+    AmazonBedrock(AmazonBedrockProvider),
+}
+
+impl LLMProvider {
+    pub(crate) async fn do_generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, reqwest::Error> {
+        match self {
+            LLMProvider::OpenAI(provider) => provider.generate_text(request),
+            LLMProvider::Anthropic(provider) => provider.generate_text(request),
+            LLMProvider::AzureOpenAI(provider) => todo!(),
+            LLMProvider::GoogleVertexAI(provider) => todo!(),
+            LLMProvider::XAI(provider) => unimplemented!(),
+            LLMProvider::AmazonBedrock(provider) => unimplemented!(),
+        }
+        .await
     }
 }
 
-impl From<AzureOpenAIConfig> for Provider {
-    fn from(config: AzureOpenAIConfig) -> Self {
-        Provider::AzureOpenAI(config)
+#[async_trait]
+pub trait GeneratesText {
+    async fn generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, reqwest::Error>;
+}
+
+impl From<OpenAIProvider> for LLMProvider {
+    fn from(config: OpenAIProvider) -> Self {
+        LLMProvider::OpenAI(config)
     }
 }
 
-impl From<AnthropicConfig> for Provider {
-    fn from(config: AnthropicConfig) -> Self {
-        Provider::Anthropic(config)
+impl From<AzureOpenAIProvider> for LLMProvider {
+    fn from(config: AzureOpenAIProvider) -> Self {
+        LLMProvider::AzureOpenAI(config)
     }
 }
 
-impl From<XAIConfig> for Provider {
-    fn from(config: XAIConfig) -> Self {
-        Provider::XAI(config)
+impl From<AnthropicProvider> for LLMProvider {
+    fn from(config: AnthropicProvider) -> Self {
+        LLMProvider::Anthropic(config)
     }
 }
 
-impl From<AmazonBedrockConfig> for Provider {
-    fn from(config: AmazonBedrockConfig) -> Self {
-        Provider::AmazonBedrock(config)
+impl From<XAIProvider> for LLMProvider {
+    fn from(config: XAIProvider) -> Self {
+        LLMProvider::XAI(config)
     }
 }
 
-impl From<GoogleVertexAIConfig> for Provider {
-    fn from(config: GoogleVertexAIConfig) -> Self {
-        Provider::GoogleVertexAI(config)
+impl From<AmazonBedrockProvider> for LLMProvider {
+    fn from(config: AmazonBedrockProvider) -> Self {
+        LLMProvider::AmazonBedrock(config)
+    }
+}
+
+impl From<GoogleVertexAIProvider> for LLMProvider {
+    fn from(config: GoogleVertexAIProvider) -> Self {
+        LLMProvider::GoogleVertexAI(config)
     }
 }

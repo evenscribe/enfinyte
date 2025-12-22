@@ -1,22 +1,38 @@
-use anyhow::{Result, bail};
+use anyhow::{bail, Result};
+use async_trait::async_trait;
 
-pub struct AmazonBedrockConfig {
+use crate::{
+    response_generators::{GenerateTextRequest, GenerateTextResponse},
+    GeneratesText,
+};
+
+pub struct AmazonBedrockProvider {
     pub region: String,
     pub access_key: String,
     pub secret_key: String,
     pub session_token: Option<String>,
 }
 
-pub struct AmazonBedrockConfigBuilder {
+#[async_trait]
+impl GeneratesText for AmazonBedrockProvider {
+    async fn generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, reqwest::Error> {
+        unimplemented!()
+    }
+}
+
+pub struct AmazonBedrockProviderBuilder {
     pub region: Option<String>,
     pub access_key: Option<String>,
     pub secret_key: Option<String>,
     pub session_token: Option<String>,
 }
 
-impl AmazonBedrockConfigBuilder {
+impl AmazonBedrockProviderBuilder {
     pub fn new() -> Self {
-        AmazonBedrockConfigBuilder {
+        Self {
             region: None,
             access_key: None,
             secret_key: None,
@@ -44,12 +60,12 @@ impl AmazonBedrockConfigBuilder {
         self
     }
 
-    pub fn build(self) -> Result<AmazonBedrockConfig> {
+    pub fn build(self) -> Result<AmazonBedrockProvider> {
         if self.region.is_none() || self.access_key.is_none() || self.secret_key.is_none() {
             bail!("region, access_key, and secret_key are required");
         }
 
-        Ok(AmazonBedrockConfig {
+        Ok(AmazonBedrockProvider {
             region: self.region.unwrap(),
             access_key: self.access_key.unwrap(),
             secret_key: self.secret_key.unwrap(),

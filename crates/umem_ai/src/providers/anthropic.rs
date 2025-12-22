@@ -1,21 +1,36 @@
-use anyhow::Result;
 use anyhow::bail;
+use anyhow::Result;
+use async_trait::async_trait;
 
-pub struct AnthropicConfig {
+use crate::response_generators::GenerateTextRequest;
+use crate::response_generators::GenerateTextResponse;
+use crate::GeneratesText;
+
+pub struct AnthropicProvider {
     pub api_key: String,
     pub base_url: String,
     pub headers: Vec<(String, String)>,
 }
 
-pub struct AnthropicConfigBuilder {
+#[async_trait]
+impl GeneratesText for AnthropicProvider {
+    async fn generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, reqwest::Error> {
+        unimplemented!()
+    }
+}
+
+pub struct AnthropicProviderBuilder {
     pub api_key: Option<String>,
     pub base_url: Option<String>,
     pub headers: Option<Vec<(String, String)>>,
 }
 
-impl AnthropicConfigBuilder {
+impl AnthropicProviderBuilder {
     pub fn new() -> Self {
-        AnthropicConfigBuilder {
+        AnthropicProviderBuilder {
             api_key: None,
             base_url: None,
             headers: None,
@@ -33,12 +48,12 @@ impl AnthropicConfigBuilder {
         self.headers = Some(headers);
         self
     }
-    pub fn build(self) -> Result<AnthropicConfig> {
+    pub fn build(self) -> Result<AnthropicProvider> {
         if self.api_key.is_none() {
             bail!("api_key is required");
         }
 
-        Ok(AnthropicConfig {
+        Ok(AnthropicProvider {
             api_key: self.api_key.unwrap_or_default(),
             base_url: self
                 .base_url
