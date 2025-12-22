@@ -17,6 +17,7 @@ umem_web_scrapper = {path = "crates/umem_web_scrapper"}
 umem_proto = {path = "crates/umem_proto"}
 umem_controller = {path = "crates/umem_controller"}
 umem_mcp = {path = "crates/umem_mcp"}
+umem_ai = {path = "crates/umem_ai"}
 anyhow = "1.0.98"
 tokio = { version = "1.45.1", features = ["macros","rt-multi-thread","rt", "signal"] }
 serde_json = "1.0.140"
