@@ -12,7 +12,6 @@ use qdrant_client::{
     },
     Payload,
 };
-use rustc_hash::FxHashMap;
 use serde_json::json;
 use std::{iter::zip, time};
 use thiserror::Error;
@@ -279,7 +278,7 @@ impl VectorStoreBase for Qdrant {
         &self,
         vector_id: &str,
         vector: Option<Vec<f32>>,
-        payload: Option<FxHashMap<String, serde_json::Value>>,
+        payload: Option<Memory>,
     ) -> crate::Result<()> {
         if let Some(vector) = vector {
             self.client

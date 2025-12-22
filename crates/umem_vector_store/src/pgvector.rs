@@ -2,7 +2,6 @@ use std::iter::zip;
 
 use crate::{VectorStoreBase, VectorStoreError};
 use async_trait::async_trait;
-use rustc_hash::FxHashMap;
 use serde_json::json;
 use sqlx::{postgres::PgPoolOptions, query, Pool, Postgres, QueryBuilder, Row};
 use thiserror::Error;
@@ -238,7 +237,7 @@ impl VectorStoreBase for PgVector {
         &self,
         vector_id: &str,
         vector: Option<Vec<f32>>,
-        payload: Option<FxHashMap<String, serde_json::Value>>,
+        payload: Option<Memory>,
     ) -> crate::Result<()> {
         if let Some(vector) = vector {
             query(&format!(

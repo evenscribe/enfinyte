@@ -4,7 +4,6 @@ mod qdrant;
 use async_trait::async_trait;
 use pgvector::{PgError, PgVector};
 use qdrant::{Qdrant, QdrantError};
-use rustc_hash::FxHashMap;
 use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::OnceCell;
@@ -70,7 +69,7 @@ pub trait VectorStoreBase {
         &self,
         vector_id: &str,
         vector: Option<Vec<f32>>,
-        payload: Option<FxHashMap<String, serde_json::Value>>,
+        payload: Option<Memory>,
     ) -> Result<()>;
 
     async fn delete(&self, vector_id: &str) -> Result<()>;

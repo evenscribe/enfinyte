@@ -117,6 +117,34 @@ impl Memory {
         self.content.summary()
     }
 
+    pub fn context(&self) -> &MemoryContext {
+        &self.context
+    }
+
+    pub fn lifecycle(&self) -> &LifecycleState {
+        &self.lifecycle
+    }
+
+    pub fn kind(&self) -> &MemoryKind {
+        &self.kind
+    }
+
+    pub fn content(&self) -> &MemoryContent {
+        &self.content
+    }
+
+    pub fn signals(&self) -> &MemorySignals {
+        &self.signals
+    }
+
+    pub fn temporal(&self) -> &TemporalMetadata {
+        &self.temporal
+    }
+
+    pub fn provenance(&self) -> &Provenance {
+        &self.provenance
+    }
+
     pub fn gen_dummy() -> Result<Memory> {
         Ok(Memory::builder()
             .id(Uuid::new_v4())

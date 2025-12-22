@@ -1,4 +1,4 @@
-use crate::MemoryKind;
+use crate::{MemoryContext, MemoryKind};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -6,7 +6,7 @@ use typed_builder::TypedBuilder;
 
 #[derive(Debug, Error, Clone, PartialEq)]
 pub enum QueryError {
-    #[error("32 must be greater than zero")]
+    #[error("limit must be greater than zero")]
     InvalidLimit,
 
     #[error("min_certainty must be in range [0.0, 1.0], got {0}")]
@@ -23,71 +23,6 @@ pub enum QueryError {
 
     #[error("context filter must specify at least one identifier")]
     EmptyContextFilter,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct ContextFilter {
-    user_id: Option<String>,
-    agent_id: Option<String>,
-    run_id: Option<String>,
-}
-
-impl ContextFilter {
-    pub fn new(
-        user_id: Option<String>,
-        agent_id: Option<String>,
-        run_id: Option<String>,
-    ) -> Result<Self, QueryError> {
-        if user_id.is_none() && agent_id.is_none() && run_id.is_none() {
-            return Err(QueryError::EmptyContextFilter);
-        }
-
-        Ok(Self {
-            user_id: user_id.map(|s| s.trim().to_string()),
-            agent_id: agent_id.map(|s| s.trim().to_string()),
-            run_id: run_id.map(|s| s.trim().to_string()),
-        })
-    }
-
-    pub fn for_user(user_id: impl Into<String>) -> Self {
-        Self {
-            user_id: Some(user_id.into()),
-            agent_id: None,
-            run_id: None,
-        }
-    }
-
-    pub fn for_agent(agent_id: impl Into<String>) -> Self {
-        Self {
-            user_id: None,
-            agent_id: Some(agent_id.into()),
-            run_id: None,
-        }
-    }
-
-    pub fn for_run(run_id: impl Into<String>) -> Self {
-        Self {
-            user_id: None,
-            agent_id: None,
-            run_id: Some(run_id.into()),
-        }
-    }
-
-    pub fn user_id(&self) -> Option<&str> {
-        self.user_id.as_deref()
-    }
-
-    pub fn agent_id(&self) -> Option<&str> {
-        self.agent_id.as_deref()
-    }
-
-    pub fn run_id(&self) -> Option<&str> {
-        self.run_id.as_deref()
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.user_id.is_none() && self.agent_id.is_none() && self.run_id.is_none()
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -213,8 +148,8 @@ impl SignalFilter {
 
 #[derive(TypedBuilder, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Query {
-    context: ContextFilter,
     limit: u32,
+    context: MemoryContext,
     #[builder(default = false)]
     include_archived: bool,
     #[builder(default, setter(strip_option))]
@@ -274,7 +209,7 @@ impl Query {
         self.vector.as_deref()
     }
 
-    pub fn context(&self) -> &ContextFilter {
+    pub fn context(&self) -> &MemoryContext {
         &self.context
     }
 
@@ -296,27 +231,6 @@ impl Query {
 
     pub fn include_archived(&self) -> bool {
         self.include_archived
-    }
-
-    pub fn for_user(user_id: impl Into<String>) -> Self {
-        Self {
-            context: ContextFilter::for_user(user_id),
-            ..Default::default()
-        }
-    }
-
-    pub fn for_agent(agent_id: impl Into<String>) -> Self {
-        Self {
-            context: ContextFilter::for_agent(agent_id),
-            ..Default::default()
-        }
-    }
-
-    pub fn for_run(run_id: impl Into<String>) -> Self {
-        Self {
-            context: ContextFilter::for_run(run_id),
-            ..Default::default()
-        }
     }
 
     pub fn active_only() -> Self {

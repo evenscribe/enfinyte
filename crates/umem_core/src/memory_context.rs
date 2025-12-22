@@ -10,7 +10,7 @@ pub enum MemoryContextError {
     EmptyField { field: &'static str },
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct MemoryContext {
     user_id: Option<String>,
     agent_id: Option<String>,
