@@ -4286,6 +4286,7 @@ dependencies = [
  "mime",
  "reqwest",
  "rustc-hash 2.1.1",
+ "schemars",
  "serde",
  "serde_json",
  "thiserror 2.0.17",

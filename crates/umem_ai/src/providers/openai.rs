@@ -1,14 +1,16 @@
 use crate::{
     reqwest_client,
     response_generators::{
+        generate_object::{GenerateObjectRequest, GenerateObjectResponse},
         messages::{FilePart, Message, UserMessagePart, UserModelMessage},
-        GenerateTextError, GenerateTextRequest, GenerateTextResponse,
+        GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
     },
-    GeneratesText,
+    GeneratesObject, GeneratesText,
 };
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use base64::Engine;
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 
@@ -20,23 +22,44 @@ pub struct OpenAIProvider {
     pub project: Option<String>,
 }
 
-#[async_trait]
-impl GeneratesText for OpenAIProvider {
-    async fn generate_text(
-        &self,
-        request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, GenerateTextError> {
-        let system = request
-            .messages
+impl OpenAIProvider {
+    pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> Result<String> {
+        let system = self.normalize_system_message(&request.messages);
+        let normalized_user_messages = self.normalize_user_messages(&request.messages)?;
+
+        let request_body = serde_json::json!({
+            "model": request.model,
+            "instructions":system,
+            "input": [serde_json::json!({
+                "type": "message",
+                "role": "user",
+                "content": normalized_user_messages
+            })],
+            "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
+            "temperature": request.temperature.unwrap_or(1.0),
+            "top_p": request.top_p.unwrap_or(1.0),
+            "reasoning" : serde_json::json!({
+                "effort": "low"
+            })
+        })
+        .to_string();
+
+        Ok(request_body)
+    }
+
+    fn normalize_system_message(&self, messages: &[Message]) -> String {
+        messages
             .iter()
             .find_map(|msg| match msg {
                 Message::System(v) => Some(v.as_str()),
                 _ => None,
             })
-            .unwrap_or("");
+            .unwrap_or("")
+            .into()
+    }
 
-        let user_messages: Vec<&UserModelMessage> = request
-            .messages
+    fn normalize_user_messages(&self, messages: &[Message]) -> Result<Vec<Value>> {
+        let user_messages: Vec<&UserModelMessage> = messages
             .iter()
             .filter_map(|msg| match msg {
                 Message::User(v) => Some(v),
@@ -89,22 +112,17 @@ impl GeneratesText for OpenAIProvider {
             })
             .collect();
 
-        let request_body = serde_json::json!({
-            "model": request.model,
-            "instructions":system,
-            "input": [serde_json::json!({
-                "type": "message",
-                "role": "user",
-                "content": input,
-            })],
-            "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
-            "temperature": request.temperature.unwrap_or(1.0),
-            "top_p": request.top_p.unwrap_or(1.0),
-            "reasoning" : serde_json::json!({
-                "effort": "low"
-            })
-        })
-        .to_string();
+        Ok(input)
+    }
+}
+
+#[async_trait]
+impl GeneratesText for OpenAIProvider {
+    async fn generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
+        let request_body = self.normalize_generate_text_request(&request)?;
 
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
@@ -114,9 +132,8 @@ impl GeneratesText for OpenAIProvider {
             .send()
             .await?
             .error_for_status()?
-            .json::<ApiResponse>()
+            .json::<OpenAIResponsesApiResponse>()
             .await?;
-
         let output_text = response
             .output
             .iter()
@@ -139,8 +156,18 @@ impl GeneratesText for OpenAIProvider {
     }
 }
 
+#[async_trait]
+impl GeneratesObject for OpenAIProvider {
+    async fn generate_object<T: Clone + Copy + JsonSchema + Serialize + Send + Sync>(
+        &self,
+        request: GenerateObjectRequest<T>,
+    ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError> {
+        unimplemented!()
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
-struct ApiResponse {
+struct OpenAIResponsesApiResponse {
     pub output: Vec<OutputItem>,
     #[serde(flatten)]
     pub response_metadata: Map<String, Value>,
