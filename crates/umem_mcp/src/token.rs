@@ -22,19 +22,18 @@ pub struct Jwks {
     pub keys: Vec<Jwk>,
 }
 
-pub async fn get_jwks(jwks_url: String) -> Result<Jwks> {
+pub async fn get_jwks(jwks_url: &str) -> Result<Jwks> {
     let jwks_resp = reqwest::get(jwks_url).await?;
     Ok(jwks_resp.json().await?)
 }
 
-pub async fn check_token(token: &str, keys: &Jwks) -> Result<TokenData<Claims>, String> {
+pub async fn check_token(
+    token: &str,
+    keys: &Jwks,
+    client_id: &str,
+) -> Result<TokenData<Claims>, String> {
     let header = decode_header(token).unwrap();
     let kid = header.kid.ok_or("No kid found in token header")?;
-
-    let client_id = match std::env::var("WORKOS_CLIENT_ID") {
-        Ok(id) => id,
-        Err(_) => return Err("WORKOS_CLIENT_ID environment variable not set".to_string()),
-    };
 
     let jwk = keys
         .keys
@@ -46,7 +45,7 @@ pub async fn check_token(token: &str, keys: &Jwks) -> Result<TokenData<Claims>, 
         .map_err(|op| format!("Decoding Key Error: {:?}", op))?;
 
     let mut validation = jsonwebtoken::Validation::new(jsonwebtoken::Algorithm::RS256);
-    validation.set_audience(&[client_id.as_str()]);
+    validation.set_audience(&[client_id]);
 
     let token_data = jsonwebtoken::decode::<Claims>(token, &decoding_key, &validation)
         .map_err(|op| format!("JWT Decode Error: {:?}", op))?;

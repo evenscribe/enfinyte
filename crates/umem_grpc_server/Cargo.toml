@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 tonic = "0.12"
 umem_proto = { workspace = true}
+umem_config = { workspace = true}
 umem_controller = { workspace = true}
 umem_core = { workspace = true}
 anyhow = { workspace = true}

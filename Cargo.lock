@@ -4269,6 +4269,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
+ "umem_config",
  "umem_grpc_server",
  "umem_mcp",
 ]
@@ -4383,6 +4384,7 @@ dependencies = [
  "anyhow",
  "tonic",
  "tracing",
+ "umem_config",
  "umem_controller",
  "umem_core",
  "umem_proto",
@@ -4403,6 +4405,7 @@ dependencies = [
  "tokio-util",
  "tower-http",
  "tracing",
+ "umem_config",
  "umem_controller",
 ]
 

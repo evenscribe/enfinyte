@@ -9,8 +9,8 @@ use service::ServiceImpl;
 pub struct MemoryServiceGrpc;
 
 impl MemoryServiceGrpc {
-    pub async fn run_server(addr: &str) -> Result<()> {
-        let addr = addr.parse()?;
+    pub async fn run_server(config: umem_config::Grpc) -> Result<()> {
+        let addr = config.server_addr;
         info!("Memory gRPC Server listening on {}", addr);
         Server::builder()
             .add_service(MemoryServiceServer::new(ServiceImpl))
