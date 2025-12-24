@@ -32,6 +32,10 @@ impl OpenAIProvider {
         let system = self.normalize_system_message(&request.messages);
         let normalized_user_messages = self.normalize_user_messages(&request.messages)?;
         let schema = request.output_schema.clone();
+        let name = std::any::type_name::<T>()
+            .split("::")
+            .last()
+            .unwrap_or("ObjectName");
 
         Ok(serde_json::json!({
             "model": request.model,
@@ -44,7 +48,7 @@ impl OpenAIProvider {
             "text": {
                 "format": {
                     "type": "json_schema",
-                    "name": std::any::type_name::<T>(),
+                    "name": name,
                     "schema":schema,
                 }},
             "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
@@ -383,9 +387,7 @@ mod tests {
     async fn test_generate_object() -> () {
         let provider = Arc::new(LLMProvider::from(
             OpenAIProviderBuilder::new()
-                .api_key(
-                    "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",
-                )
+                .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
                 .build()
                 .unwrap(),
@@ -416,9 +418,7 @@ mod tests {
     async fn test_generate_text() -> () {
         let provider = Arc::new(LLMProvider::from(
             OpenAIProviderBuilder::new()
-                .api_key(
-                    "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",
-                )
+                .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
                 .build()
                 .unwrap(),
