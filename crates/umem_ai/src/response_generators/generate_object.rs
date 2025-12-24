@@ -2,14 +2,14 @@ use crate::{response_generators::messages::Message, utils::is_retryable_error, L
 use anyhow::{anyhow, Result};
 use backon::{ExponentialBuilder, Retryable};
 use schemars::{schema_for, JsonSchema, Schema};
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 use std::{marker::PhantomData, sync::Arc};
 
 pub async fn generate_object<T>(
     request: GenerateObjectRequest<T>,
 ) -> Result<GenerateObjectResponse<T>>
 where
-    T: Copy + Clone + JsonSchema + Send + Sync + Serialize,
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
     let generation = || {
         let provider = Arc::clone(&request.provider);
@@ -28,7 +28,7 @@ where
 #[derive(Clone)]
 pub struct GenerateObjectRequest<T>
 where
-    T: Copy + Clone + JsonSchema + Send + Sync + Serialize,
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
     pub model: String,
     pub provider: Arc<LLMProvider>,
@@ -47,10 +47,13 @@ where
 
 #[derive(Debug)]
 pub struct GenerateObjectResponse<T> {
-    output: T,
+    pub output: T,
 }
 
-pub struct GenerateObjectRequestBuilder<T: Copy + Clone + JsonSchema + Send + Sync + Serialize> {
+pub struct GenerateObjectRequestBuilder<T>
+where
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
+{
     pub model: Option<String>,
     pub provider: Option<Arc<LLMProvider>>,
     pub system: Option<String>,
@@ -70,7 +73,7 @@ pub struct GenerateObjectRequestBuilder<T: Copy + Clone + JsonSchema + Send + Sy
 
 impl<T> GenerateObjectRequestBuilder<T>
 where
-    T: Copy + Clone + JsonSchema + Send + Sync + Serialize,
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
     pub fn new() -> Self {
         let schema = schema_for!(T);
@@ -158,12 +161,38 @@ where
         self
     }
 
-    pub fn build(self) -> Result<GenerateObjectRequest<T>> {
+    pub fn build(mut self) -> Result<GenerateObjectRequest<T>> {
         if self.model.is_none() {
             return Err(anyhow!("model is required".to_string()));
         }
         if self.provider.is_none() {
             return Err(anyhow!("provider is required".to_string()));
+        }
+
+        let has_system_message_in_messages = self
+            .messages
+            .iter()
+            .any(|message| matches!(message, Message::System(_)));
+
+        if !has_system_message_in_messages && self.system.is_none() {
+            anyhow::bail!(
+                "either set the `system` field or provide a system message in `messages` array"
+            )
+        }
+
+        if has_system_message_in_messages && self.system.is_some() {
+            anyhow::bail!(
+                "cannot set `system` field and also have a system message in `messages` array"
+            );
+        }
+
+        if !has_system_message_in_messages {
+            self.messages
+                .insert(0, Message::System(self.system.unwrap()));
+        }
+
+        if let Some(user_prompt) = self.prompt {
+            self.messages.push(Message::User(user_prompt.into()));
         }
 
         Ok(GenerateObjectRequest {
@@ -181,24 +210,5 @@ where
             output_type: PhantomData,
             output_schema: self.output_schema,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    #[derive(JsonSchema, Clone, Copy, Serialize)]
-    pub struct MyStruct {
-        #[schemars(description = "An integer field")]
-        pub my_int: i32,
-        #[schemars(description = "An bool field")]
-        pub my_bool: bool,
-    }
-
-    #[test]
-    fn test0_building() {
-        let request_builder =
-            GenerateObjectRequestBuilder::<MyStruct>::new().model("gpt-4".to_string());
-        dbg!("request_builder: {:?}", request_builder.output_schema);
     }
 }

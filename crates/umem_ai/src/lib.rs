@@ -1,22 +1,15 @@
-use crate::{
-    providers::{
-        AmazonBedrockProvider, AnthropicProvider, AzureOpenAIProvider, GoogleVertexAIProvider,
-        OpenAIProvider, XAIProvider,
-    },
-    response_generators::{
-        generate_object::{GenerateObjectRequest, GenerateObjectResponse},
-        GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
-    },
-};
+mod providers;
+mod response_generators;
+pub(crate) mod utils;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
 use schemars::JsonSchema;
-use serde::Serialize;
+use serde::{de::DeserializeOwned, Serialize};
 
-mod providers;
-mod response_generators;
-pub mod utils;
+pub use providers::*;
+pub use response_generators::*;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
@@ -46,12 +39,16 @@ impl LLMProvider {
     }
 
     pub(crate) async fn do_generate_object<
-        T: Clone + Copy + JsonSchema + Serialize + Send + Sync,
+        T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned,
     >(
         &self,
         request: GenerateObjectRequest<T>,
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError> {
-        unimplemented!()
+        match self {
+            LLMProvider::OpenAI(provider) => provider.generate_object(request),
+            _ => unimplemented!(),
+        }
+        .await
     }
 }
 
@@ -65,7 +62,7 @@ pub trait GeneratesText {
 
 #[async_trait]
 pub trait GeneratesObject {
-    async fn generate_object<T: Clone + Copy + JsonSchema + Serialize + Send + Sync>(
+    async fn generate_object<T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned>(
         &self,
         request: GenerateObjectRequest<T>,
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>;
