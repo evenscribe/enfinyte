@@ -36,7 +36,7 @@ impl MemoryController {
     pub async fn create(request: CreateMemoryRequest) -> Result<Memory> {
         let vector_store = VectorStore::get_store().await?;
         let embedder = Embedder::get_embedder().await?;
-        let memory = request.build()?;
+        let memory = request.build().await?;
         let vector = embedder.generate_embedding(memory.get_summary()).await?;
         vector_store.insert(&[&vector], &[&memory]).await?;
         Ok(memory)

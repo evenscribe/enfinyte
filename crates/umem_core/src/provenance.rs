@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use thiserror::Error;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, schemars::JsonSchema, Clone, Deserialize, Default)]
 pub struct Provenance {
     pub origin: ProvenanceOrigin,
     pub method: ProvenanceMethod,
@@ -28,8 +28,9 @@ impl Provenance {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, schemars::JsonSchema, Clone, Copy, Deserialize, Default)]
 pub enum ProvenanceOrigin {
+    #[default]
     User,
     Agent,
 }
@@ -54,11 +55,17 @@ impl FromStr for ProvenanceOrigin {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, schemars::JsonSchema, Clone, Default, Deserialize)]
 pub enum ProvenanceMethod {
+    #[default]
     Direct,
-    Extracted { model: String, prompt: String },
-    Summarized { model: String },
+    Extracted {
+        model: String,
+        prompt: String,
+    },
+    Summarized {
+        model: String,
+    },
 }
 
 #[derive(Debug, Error, Clone, PartialEq)]

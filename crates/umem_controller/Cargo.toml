@@ -6,7 +6,9 @@ edition = "2021"
 [dependencies]
 serde_json = { workspace = true }
 umem_vector_store = { workspace = true}
+umem_ai = { workspace = true}
 umem_embeddings = { workspace = true}
+umem_annotations = { workspace = true}
 umem_core = { workspace = true}
 anyhow = { workspace = true }
 chrono = {workspace = true }

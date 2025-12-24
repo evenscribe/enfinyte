@@ -9,7 +9,7 @@ pub enum CredenceError {
     OutOfRange(f32),
 }
 
-#[derive(Serialize, Deserialize, Copy, Clone)]
+#[derive(Serialize, schemars::JsonSchema, Deserialize, Default, Copy, Clone)]
 pub struct Credence(f32);
 
 impl Credence {

@@ -1,13 +1,14 @@
+use crate::ResponseGeneratorError;
 use crate::{response_generators::messages::Message, utils::is_retryable_error, LLMProvider};
-use anyhow::{anyhow, Result};
 use backon::{ExponentialBuilder, Retryable};
 use schemars::{schema_for, JsonSchema, Schema};
 use serde::{de::DeserializeOwned, Serialize};
 use std::{marker::PhantomData, sync::Arc};
+use thiserror::Error;
 
 pub async fn generate_object<T>(
     request: GenerateObjectRequest<T>,
-) -> Result<GenerateObjectResponse<T>>
+) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
@@ -22,7 +23,21 @@ where
         .sleep(tokio::time::sleep)
         .when(is_retryable_error)
         .await
-        .map_err(|e| anyhow!(e))
+}
+
+#[derive(Debug, Error)]
+pub enum GenerateObjectRequestBuilderError {
+    #[error("either set the `system` field or provide a system message in `messages` array")]
+    RedundantSystemMessage,
+
+    #[error("missing system message")]
+    MissingSytemMessage,
+
+    #[error("missing model")]
+    MissingModel,
+
+    #[error("missing provider")]
+    MissingProvider,
 }
 
 #[derive(Clone)]
@@ -96,8 +111,8 @@ where
         }
     }
 
-    pub fn model(mut self, model: String) -> Self {
-        self.model = Some(model);
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 
@@ -106,13 +121,13 @@ where
         self
     }
 
-    pub fn system(mut self, system: String) -> Self {
-        self.system = Some(system);
+    pub fn system(mut self, system: impl Into<String>) -> Self {
+        self.system = Some(system.into());
         self
     }
 
-    pub fn prompt(mut self, prompt: String) -> Self {
-        self.prompt = Some(prompt);
+    pub fn prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.prompt = Some(prompt.into());
         self
     }
 
@@ -161,12 +176,12 @@ where
         self
     }
 
-    pub fn build(mut self) -> Result<GenerateObjectRequest<T>> {
+    pub fn build(mut self) -> Result<GenerateObjectRequest<T>, GenerateObjectRequestBuilderError> {
         if self.model.is_none() {
-            return Err(anyhow!("model is required".to_string()));
+            return Err(GenerateObjectRequestBuilderError::MissingModel);
         }
         if self.provider.is_none() {
-            return Err(anyhow!("provider is required".to_string()));
+            return Err(GenerateObjectRequestBuilderError::MissingProvider);
         }
 
         let has_system_message_in_messages = self
@@ -175,15 +190,11 @@ where
             .any(|message| matches!(message, Message::System(_)));
 
         if !has_system_message_in_messages && self.system.is_none() {
-            anyhow::bail!(
-                "either set the `system` field or provide a system message in `messages` array"
-            )
+            return Err(GenerateObjectRequestBuilderError::MissingSytemMessage);
         }
 
         if has_system_message_in_messages && self.system.is_some() {
-            anyhow::bail!(
-                "cannot set `system` field and also have a system message in `messages` array"
-            );
+            return Err(GenerateObjectRequestBuilderError::RedundantSystemMessage);
         }
 
         if !has_system_message_in_messages {

@@ -1,14 +1,16 @@
 use crate::response_generators::messages::Message;
 use crate::utils::is_retryable_error;
 use crate::LLMProvider;
-use anyhow::anyhow;
-use anyhow::Result;
+use crate::ResponseGeneratorError;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use std::sync::Arc;
+use thiserror::Error;
 
 // TODO: Wrap me with observers for logging, metrics, tracing, etc.
-pub async fn generate_text(request: GenerateTextRequest) -> Result<GenerateTextResponse> {
+pub async fn generate_text(
+    request: GenerateTextRequest,
+) -> Result<GenerateTextResponse, ResponseGeneratorError> {
     let generation = || {
         let provider = Arc::clone(&request.provider);
         let request = request.clone();
@@ -20,7 +22,6 @@ pub async fn generate_text(request: GenerateTextRequest) -> Result<GenerateTextR
         .sleep(tokio::time::sleep)
         .when(is_retryable_error)
         .await
-        .map_err(|e| anyhow!(e))
 }
 
 #[derive(Debug)]
@@ -41,6 +42,21 @@ pub struct GenerateTextRequest {
     pub seed: Option<u64>,
     pub max_retries: usize,
     pub headers: Vec<(String, String)>,
+}
+
+#[derive(Debug, Error)]
+pub enum GenerateTextRequestBuilderError {
+    #[error("either set the `system` field or provide a system message in `messages` array")]
+    RedundantSystemMessage,
+
+    #[error("missing system message")]
+    MissingSytemMessage,
+
+    #[error("missing model")]
+    MissingModel,
+
+    #[error("missing provider")]
+    MissingProvider,
 }
 
 pub struct GenerateTextRequestBuilder {
@@ -78,8 +94,8 @@ impl GenerateTextRequestBuilder {
         }
     }
 
-    pub fn model(mut self, model: String) -> Self {
-        self.model = Some(model);
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 
@@ -88,13 +104,13 @@ impl GenerateTextRequestBuilder {
         self
     }
 
-    pub fn system(mut self, system: String) -> Self {
-        self.system = Some(system);
+    pub fn system(mut self, system: impl Into<String>) -> Self {
+        self.system = Some(system.into());
         self
     }
 
-    pub fn prompt(mut self, prompt: String) -> Self {
-        self.prompt = Some(prompt);
+    pub fn prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.prompt = Some(prompt.into());
         self
     }
 
@@ -143,22 +159,18 @@ impl GenerateTextRequestBuilder {
         self
     }
 
-    pub fn build(mut self) -> Result<GenerateTextRequest> {
+    pub fn build(mut self) -> Result<GenerateTextRequest, GenerateTextRequestBuilderError> {
         let has_system_message_in_messages = self
             .messages
             .iter()
             .any(|message| matches!(message, Message::System(_)));
 
         if !has_system_message_in_messages && self.system.is_none() {
-            anyhow::bail!(
-                "either set the `system` field or provide a system message in `messages` array"
-            )
+            return Err(GenerateTextRequestBuilderError::MissingSytemMessage);
         }
 
         if has_system_message_in_messages && self.system.is_some() {
-            anyhow::bail!(
-                "cannot set `system` field and also have a system message in `messages` array"
-            );
+            return Err(GenerateTextRequestBuilderError::RedundantSystemMessage);
         }
 
         if !has_system_message_in_messages {
@@ -171,9 +183,13 @@ impl GenerateTextRequestBuilder {
         }
 
         Ok(GenerateTextRequest {
-            model: self.model.ok_or(anyhow!("model is required"))?,
+            model: self
+                .model
+                .ok_or(GenerateTextRequestBuilderError::MissingModel)?,
             messages: self.messages,
-            provider: self.provider.ok_or(anyhow!("provider is required"))?,
+            provider: self
+                .provider
+                .ok_or(GenerateTextRequestBuilderError::MissingProvider)?,
             max_output_tokens: self.max_output_tokens,
             top_p: self.top_p,
             top_k: self.top_k,

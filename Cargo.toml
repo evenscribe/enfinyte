@@ -12,6 +12,7 @@ umem_core = {path = "crates/umem_core"}
 umem_vector_store = {path = "crates/umem_vector_store"}
 umem_config = {path = "crates/umem_config"}
 umem_embeddings = {path = "crates/umem_embeddings"}
+umem_annotations = {path = "crates/umem_annotations"}
 umem_grpc_server = {path = "crates/umem_grpc_server"}
 umem_web_scrapper = {path = "crates/umem_web_scrapper"}
 umem_proto = {path = "crates/umem_proto"}
