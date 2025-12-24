@@ -195,11 +195,7 @@ impl VectorStoreBase for PgVector {
         self.create_collection().await
     }
 
-    async fn insert<'a>(
-        &self,
-        vectors: Vec<Vec<f32>>,
-        payloads: Vec<&'a Memory>,
-    ) -> crate::Result<()> {
+    async fn insert(&self, vectors: &[&[f32]], payloads: &[&Memory]) -> crate::Result<()> {
         for (vector, payload) in zip(vectors, payloads) {
             query(&format!(
                 r#"INSERT INTO {}
@@ -236,8 +232,8 @@ impl VectorStoreBase for PgVector {
     async fn update(
         &self,
         vector_id: &str,
-        vector: Option<Vec<f32>>,
-        payload: Option<Memory>,
+        vector: Option<&[f32]>,
+        payload: Option<&Memory>,
     ) -> crate::Result<()> {
         if let Some(vector) = vector {
             query(&format!(
