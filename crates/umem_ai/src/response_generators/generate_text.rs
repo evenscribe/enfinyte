@@ -6,7 +6,6 @@ use anyhow::Result;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use std::sync::Arc;
-use thiserror::Error;
 
 // TODO: Wrap me with observers for logging, metrics, tracing, etc.
 pub async fn generate_text(request: GenerateTextRequest) -> Result<GenerateTextResponse> {
@@ -27,14 +26,6 @@ pub async fn generate_text(request: GenerateTextRequest) -> Result<GenerateTextR
 #[derive(Debug)]
 pub struct GenerateTextResponse {
     pub text: String,
-}
-
-#[derive(Error, Debug)]
-pub enum GenerateTextError {
-    #[error(transparent)]
-    Http(#[from] reqwest::Error),
-    #[error(transparent)]
-    Other(#[from] anyhow::Error),
 }
 
 #[derive(Clone)]

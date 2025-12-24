@@ -1,17 +1,15 @@
-use crate::{
-    providers::{
-        AmazonBedrockProvider, AnthropicProvider, AzureOpenAIProvider, GoogleVertexAIProvider,
-        OpenAIProvider, XAIProvider,
-    },
-    response_generators::{GenerateTextError, GenerateTextRequest, GenerateTextResponse},
-};
+mod providers;
+mod response_generators;
+pub(crate) mod utils;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
+use schemars::JsonSchema;
+use serde::{de::DeserializeOwned, Serialize};
 
-mod providers;
-mod response_generators;
-pub mod utils;
+pub use providers::*;
+pub use response_generators::*;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
@@ -32,14 +30,23 @@ impl LLMProvider {
     pub(crate) async fn do_generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, GenerateTextError> {
+    ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
         match self {
             LLMProvider::OpenAI(provider) => provider.generate_text(request),
-            LLMProvider::Anthropic(provider) => provider.generate_text(request),
-            LLMProvider::AzureOpenAI(provider) => todo!(),
-            LLMProvider::GoogleVertexAI(provider) => todo!(),
-            LLMProvider::XAI(provider) => unimplemented!(),
-            LLMProvider::AmazonBedrock(provider) => unimplemented!(),
+            _ => unimplemented!(),
+        }
+        .await
+    }
+
+    pub(crate) async fn do_generate_object<
+        T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned,
+    >(
+        &self,
+        request: GenerateObjectRequest<T>,
+    ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError> {
+        match self {
+            LLMProvider::OpenAI(provider) => provider.generate_object(request),
+            _ => unimplemented!(),
         }
         .await
     }
@@ -50,7 +57,15 @@ pub trait GeneratesText {
     async fn generate_text(
         &self,
         request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, GenerateTextError>;
+    ) -> Result<GenerateTextResponse, ResponseGeneratorError>;
+}
+
+#[async_trait]
+pub trait GeneratesObject {
+    async fn generate_object<T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned>(
+        &self,
+        request: GenerateObjectRequest<T>,
+    ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>;
 }
 
 impl From<OpenAIProvider> for LLMProvider {
