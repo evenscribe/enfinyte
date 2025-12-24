@@ -61,15 +61,15 @@ pub trait VectorStoreBase {
 
     async fn reset(&self) -> Result<()>;
 
-    async fn insert<'a>(&self, vectors: Vec<Vec<f32>>, payloads: Vec<&'a Memory>) -> Result<()>;
+    async fn insert(&self, vectors: &[&[f32]], payloads: &[&Memory]) -> Result<()>;
 
     async fn get(&self, vector_id: &str) -> Result<Memory>;
 
     async fn update(
         &self,
         vector_id: &str,
-        vector: Option<Vec<f32>>,
-        payload: Option<Memory>,
+        vector: Option<&[f32]>,
+        payload: Option<&Memory>,
     ) -> Result<()>;
 
     async fn delete(&self, vector_id: &str) -> Result<()>;

@@ -1,12 +1,26 @@
 use config::{Config, File};
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::net::SocketAddr;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Cloudflare {
     pub account_id: String,
     pub api_token: String,
     pub model: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Grpc {
+    pub server_addr: SocketAddr,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct Mcp {
+    pub server_addr: SocketAddr,
+    pub remote_url: String,
+    pub jwks_url: String,
+    pub work_os: WorkOs,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -48,9 +62,10 @@ pub enum VectorStore {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
-    pub work_os: WorkOs,
     pub vector_store: VectorStore,
     pub embedder: Embedder,
+    pub mcp: Option<Mcp>,
+    pub grpc: Option<Grpc>,
 }
 
 impl Default for AppConfig {

@@ -233,16 +233,12 @@ impl VectorStoreBase for Qdrant {
         Ok(())
     }
 
-    async fn insert<'a>(
-        &self,
-        vectors: Vec<Vec<f32>>,
-        payloads: Vec<&'a Memory>,
-    ) -> crate::Result<()> {
+    async fn insert(&self, vectors: &[&[f32]], payloads: &[&Memory]) -> crate::Result<()> {
         let mut points: Vec<PointStruct> = Vec::with_capacity(vectors.len());
         for (vector, payload) in zip(vectors, payloads) {
             let point_id = payload.get_id();
             let payload = Payload::try_from(json!(payload))?;
-            points.push(PointStruct::new(point_id.to_string(), vector, payload));
+            points.push(PointStruct::new(point_id.to_string(), *vector, payload));
         }
 
         self.client
@@ -277,8 +273,8 @@ impl VectorStoreBase for Qdrant {
     async fn update(
         &self,
         vector_id: &str,
-        vector: Option<Vec<f32>>,
-        payload: Option<Memory>,
+        vector: Option<&[f32]>,
+        payload: Option<&Memory>,
     ) -> crate::Result<()> {
         if let Some(vector) = vector {
             self.client

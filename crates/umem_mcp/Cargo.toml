@@ -6,6 +6,7 @@ edition = "2021"
 [dependencies]
 anyhow = {workspace = true}
 umem_controller = { workspace = true }
+umem_config = { workspace = true }
 serde = {workspace = true }
 tokio = { workspace = true }
 rmcp = {workspace = true, features=["auth"] }

@@ -9,7 +9,7 @@ use axum::{
     middleware::{self, Next},
     response::{IntoResponse, Response},
     routing::get,
-    Json, Router,
+    Extension, Json, Router,
 };
 use rmcp::transport::{
     sse_server::SseServerConfig, streamable_http_server::session::local::LocalSessionManager,
@@ -24,30 +24,35 @@ use tower_http::{
 };
 use tracing::{error, info, Level};
 
-const BIND_ADDRESS: &str = "0.0.0.0:3000";
-const REMOTE_ADDRESS: &str = "https://m.evenscribe.com";
 pub const USER_ID_HEADER: &str = "x-evenscribe-header";
 
 #[derive(Clone, Debug)]
 struct McpAppState {
+    server_addr: SocketAddr,
+    remote_url: String,
+    workos_authkit_url: String,
+    workos_client_id: String,
     jwks: Arc<token::Jwks>,
 }
 
 impl McpAppState {
-    async fn new() -> Self {
-        let jwks_url = std::env::var("JWKS_URL").expect("JWKS_URL not set.");
-        println!("Using JWKS URL: {}", jwks_url);
-        let jwks = token::get_jwks(jwks_url)
+    async fn new(config: umem_config::Mcp) -> Self {
+        let jwks = token::get_jwks(&config.jwks_url)
             .await
-            .unwrap_or_else(|e| panic!("THIS IS THE ERRROR BTW, {}", e));
+            .unwrap_or_else(|e| panic!("jwks_url parse token error {}", e));
+
         Self {
+            server_addr: config.server_addr,
+            remote_url: config.remote_url,
+            workos_authkit_url: config.work_os.authkit_url,
+            workos_client_id: config.work_os.client_id,
             jwks: Arc::new(jwks),
         }
     }
 }
 
 async fn validate_token_middleware(
-    State(token_store): State<Arc<McpAppState>>,
+    State(app_state): State<Arc<McpAppState>>,
     mut request: Request<axum::body::Body>,
     next: Next,
 ) -> Response {
@@ -67,10 +72,11 @@ async fn validate_token_middleware(
         }
     };
 
-    let token_data = match token::check_token(token, &Arc::clone(&token_store.jwks)).await {
-        Ok(claims) => claims,
-        Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
-    };
+    let token_data =
+        match token::check_token(token, &app_state.jwks, &app_state.workos_client_id).await {
+            Ok(claims) => claims,
+            Err(_) => return StatusCode::UNAUTHORIZED.into_response(),
+        };
 
     let _ = request.headers_mut().insert(
         USER_ID_HEADER,
@@ -80,34 +86,23 @@ async fn validate_token_middleware(
     next.run(request).await
 }
 
-async fn oauth_protected_resource_server() -> impl IntoResponse {
-    let workos_authkit_url = match std::env::var("WORKOS_AUTHKIT_URL") {
-        Ok(url) => url,
-        Err(_) => {
-            return (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "WORKOS_AUTHKIT_URL not set",
-            )
-                .into_response();
-        }
-    };
+async fn oauth_protected_resource_server(
+    State(app_state): State<Arc<McpAppState>>,
+) -> impl IntoResponse {
+    let workos_authkit_url = &app_state.workos_authkit_url;
+
     let metadata = json!({ // More equity for this line
-        "resource": REMOTE_ADDRESS,
+        "resource": app_state.remote_url,
         "authorization_servers": [workos_authkit_url],
         "bearer_methods_supported": ["header"],
     });
     (StatusCode::OK, Json(metadata)).into_response()
 }
 
-async fn oauth_authorization_server() -> impl IntoResponse {
-    let workos_authkit_url = std::env::var("WORKOS_AUTHKIT_URL")
-        .map_err(|_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "WORKOS_AUTHKIT_URL not set",
-            )
-        })
-        .unwrap();
+async fn oauth_authorization_server(
+    State(app_state): State<Arc<McpAppState>>,
+) -> impl IntoResponse {
+    let workos_authkit_url = &app_state.workos_authkit_url;
 
     let metadata = json!({
     "authorization_endpoint": format!("{}/oauth2/authorize", workos_authkit_url),
@@ -163,9 +158,9 @@ fn build_stream_http(app_state: Arc<McpAppState>) -> Router {
         )
 }
 
-fn build_sse(addr: SocketAddr, app_state: Arc<McpAppState>) -> Router {
+fn build_sse(app_state: Arc<McpAppState>) -> Router {
     let sse_config = SseServerConfig {
-        bind: addr,
+        bind: app_state.server_addr,
         sse_path: "/mcp/sse".to_string(),
         post_path: "/mcp/message".to_string(),
         ct: CancellationToken::new(),
@@ -210,15 +205,16 @@ fn build_auth_router(app_state: Arc<McpAppState>) -> Router {
             "/.well-known/oauth-authorization-server",
             get(oauth_authorization_server).options(oauth_authorization_server),
         )
+        .layer(Extension(""))
         .layer(cors_layer)
         .with_state(app_state)
 }
 
-pub async fn run_server() -> Result<()> {
-    let addr = BIND_ADDRESS.parse()?;
-    let app_state = Arc::new(McpAppState::new().await);
+pub async fn run_server(config: umem_config::Mcp) -> Result<()> {
+    let addr = config.server_addr;
+    let app_state = Arc::new(McpAppState::new(config).await);
 
-    let protected_sse_router = build_sse(addr, Arc::clone(&app_state));
+    let protected_sse_router = build_sse(Arc::clone(&app_state));
     let streamable_router = build_stream_http(Arc::clone(&app_state));
     let oauth_server_router = build_auth_router(Arc::clone(&app_state));
 

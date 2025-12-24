@@ -38,7 +38,7 @@ impl MemoryController {
         let embedder = Embedder::get_embedder().await?;
         let memory = request.build()?;
         let vector = embedder.generate_embedding(memory.get_summary()).await?;
-        vector_store.insert(vec![vector], vec![&memory]).await?;
+        vector_store.insert(&[&vector], &[&memory]).await?;
         Ok(memory)
     }
 
@@ -57,7 +57,9 @@ impl MemoryController {
             memory,
         } = request;
 
-        Ok(vector_store.update(&vector_id, vector, memory).await?)
+        Ok(vector_store
+            .update(&vector_id, vector.as_deref(), memory.as_ref())
+            .await?)
     }
 
     pub async fn delete(id: String) -> Result<()> {
