@@ -201,3 +201,9 @@ impl GenerateTextRequestBuilder {
         })
     }
 }
+
+impl Default for GenerateTextRequestBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -1,3 +1,5 @@
+// TODO: remove this allow once the module is fully implemented
+#![allow(dead_code)]
 mod providers;
 mod response_generators;
 pub(crate) mod utils;
