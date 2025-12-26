@@ -1,11 +1,10 @@
-use anyhow::bail;
-use anyhow::Result;
-use async_trait::async_trait;
-
-use crate::response_generators::GenerateTextError;
 use crate::response_generators::GenerateTextRequest;
 use crate::response_generators::GenerateTextResponse;
 use crate::GeneratesText;
+use crate::ResponseGeneratorError;
+use anyhow::bail;
+use anyhow::Result;
+use async_trait::async_trait;
 
 pub struct AnthropicProvider {
     pub api_key: String,
@@ -17,8 +16,8 @@ pub struct AnthropicProvider {
 impl GeneratesText for AnthropicProvider {
     async fn generate_text(
         &self,
-        request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, GenerateTextError> {
+        _request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
         unimplemented!()
     }
 }

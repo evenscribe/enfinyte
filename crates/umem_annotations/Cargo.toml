@@ -1,0 +1,12 @@
+[package]
+name = "umem_annotations"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+umem_ai = { workspace = true}
+umem_core = { workspace = true}
+thiserror = { workspace = true }
+typed-builder = { workspace = true }
+schemars = { workspace = true }
+serde = { workspace = true }

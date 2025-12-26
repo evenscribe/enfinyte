@@ -1,6 +1,6 @@
 use crate::{
-    response_generators::{GenerateTextError, GenerateTextRequest, GenerateTextResponse},
-    GeneratesText, HashMap,
+    response_generators::{GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError},
+    GeneratesText,
 };
 use anyhow::{bail, Result};
 use async_trait::async_trait;
@@ -16,8 +16,8 @@ pub struct AzureOpenAIProvider {
 impl GeneratesText for AzureOpenAIProvider {
     async fn generate_text(
         &self,
-        request: GenerateTextRequest,
-    ) -> Result<GenerateTextResponse, GenerateTextError> {
+        _request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
         unimplemented!()
     }
 }

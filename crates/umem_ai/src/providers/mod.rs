@@ -9,5 +9,5 @@ pub use amazon_bedrock::AmazonBedrockProvider;
 pub use anthropic::AnthropicProvider;
 pub use azure_openai::AzureOpenAIProvider;
 pub use google_vertex::GoogleVertexAIProvider;
-pub use openai::OpenAIProvider;
+pub use openai::*;
 pub use xai::XAIProvider;

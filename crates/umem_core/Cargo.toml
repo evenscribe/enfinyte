@@ -10,3 +10,4 @@ chrono = { workspace = true, features = ["serde"] }
 thiserror = { workspace = true }
 rustc-hash = { workspace = true }
 typed-builder = { workspace = true }
+schemars = { workspace = true }

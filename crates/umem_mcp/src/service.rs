@@ -88,6 +88,7 @@ impl McpService {
                 .user_id(Some(user_id))
                 .raw_content(content)
                 .build(),
+            None,
         )
         .await
         .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;

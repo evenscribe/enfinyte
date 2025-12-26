@@ -27,7 +27,9 @@ impl FromStr for MemoryKind {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq)]
+#[derive(
+    Debug, schemars::JsonSchema, Clone, Copy, Serialize, Deserialize, Default, PartialEq, Eq,
+)]
 pub enum MemoryKind {
     #[default]
     Semantic, // general knowledge

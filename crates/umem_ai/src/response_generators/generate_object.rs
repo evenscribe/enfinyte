@@ -1,28 +1,59 @@
-use crate::{response_generators::messages::Message, utils::is_retryable_error, LLMProvider};
-use anyhow::{anyhow, Result};
+use crate::{response_generators::messages::Message, utils::is_retryable_error};
+use crate::{utils, LanguageModel, ResponseGeneratorError};
 use backon::{ExponentialBuilder, Retryable};
+use reqwest::header::HeaderMap;
 use schemars::{schema_for, JsonSchema, Schema};
 use serde::{de::DeserializeOwned, Serialize};
+use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
+use thiserror::Error;
 
 pub async fn generate_object<T>(
     request: GenerateObjectRequest<T>,
-) -> Result<GenerateObjectResponse<T>>
+) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
+    let per_request_timeout = request.timeout;
+    let max_retries = request.max_retries;
+    let total_delay = per_request_timeout.mul_f32(max_retries as f32 / 2.0);
+
     let generation = || {
-        let provider = Arc::clone(&request.provider);
+        let model = Arc::clone(&request.model);
+        let provider = Arc::clone(&model.provider);
         let request = request.clone();
-        async move { provider.do_generate_object::<T>(request).await }
+        async move {
+            tokio::time::timeout(per_request_timeout, provider.do_generate_object(request))
+                .await
+                .map_err(ResponseGeneratorError::TimeoutError)
+                .flatten()
+        }
     };
 
     generation
-        .retry(ExponentialBuilder::default().with_max_times(request.max_retries))
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_times(max_retries)
+                .with_total_delay(Some(total_delay)),
+        )
         .sleep(tokio::time::sleep)
         .when(is_retryable_error)
+        .notify(|err, dur| {
+            tracing::debug!("retrying {:?} after {:?}", err, dur);
+        })
         .await
-        .map_err(|e| anyhow!(e))
+}
+
+#[derive(Debug, Error)]
+pub enum GenerateObjectRequestBuilderError {
+    #[error("either set the `system` field or provide a system message in `messages` array")]
+    RedundantSystemMessage,
+
+    #[error("missing system message")]
+    MissingSytemMessage,
+
+    #[error("missing model")]
+    MissingModel,
 }
 
 #[derive(Clone)]
@@ -30,8 +61,7 @@ pub struct GenerateObjectRequest<T>
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
-    pub model: String,
-    pub provider: Arc<LLMProvider>,
+    pub model: Arc<LanguageModel>,
     pub messages: Vec<Message>,
     pub max_output_tokens: Option<usize>,
     pub temperature: Option<f32>,
@@ -40,9 +70,10 @@ where
     pub presence_penalty: Option<f32>,
     pub seed: Option<u64>,
     pub max_retries: usize,
-    pub headers: Vec<(String, String)>,
+    pub headers: HeaderMap,
     pub output_type: PhantomData<T>,
     pub output_schema: Schema,
+    pub timeout: Duration,
 }
 
 #[derive(Debug)]
@@ -54,8 +85,7 @@ pub struct GenerateObjectRequestBuilder<T>
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
-    pub model: Option<String>,
-    pub provider: Option<Arc<LLMProvider>>,
+    pub model: Option<Arc<LanguageModel>>,
     pub system: Option<String>,
     pub prompt: Option<String>,
     pub messages: Vec<Message>,
@@ -69,6 +99,7 @@ where
     pub headers: Vec<(String, String)>,
     pub output_type: PhantomData<T>,
     pub output_schema: Schema,
+    pub timeout: Option<Duration>,
 }
 
 impl<T> GenerateObjectRequestBuilder<T>
@@ -79,7 +110,6 @@ where
         let schema = schema_for!(T);
         GenerateObjectRequestBuilder {
             model: None,
-            provider: None,
             system: None,
             prompt: None,
             messages: Vec::new(),
@@ -92,27 +122,23 @@ where
             max_retries: None,
             headers: Vec::new(),
             output_type: PhantomData,
+            timeout: Some(Duration::from_mins(3)),
             output_schema: schema,
         }
     }
 
-    pub fn model(mut self, model: String) -> Self {
+    pub fn model(mut self, model: Arc<LanguageModel>) -> Self {
         self.model = Some(model);
         self
     }
 
-    pub fn provider(mut self, provider: Arc<LLMProvider>) -> Self {
-        self.provider = Some(provider);
+    pub fn system(mut self, system: impl Into<String>) -> Self {
+        self.system = Some(system.into());
         self
     }
 
-    pub fn system(mut self, system: String) -> Self {
-        self.system = Some(system);
-        self
-    }
-
-    pub fn prompt(mut self, prompt: String) -> Self {
-        self.prompt = Some(prompt);
+    pub fn prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.prompt = Some(prompt.into());
         self
     }
 
@@ -161,12 +187,14 @@ where
         self
     }
 
-    pub fn build(mut self) -> Result<GenerateObjectRequest<T>> {
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    pub fn build(mut self) -> Result<GenerateObjectRequest<T>, GenerateObjectRequestBuilderError> {
         if self.model.is_none() {
-            return Err(anyhow!("model is required".to_string()));
-        }
-        if self.provider.is_none() {
-            return Err(anyhow!("provider is required".to_string()));
+            return Err(GenerateObjectRequestBuilderError::MissingModel);
         }
 
         let has_system_message_in_messages = self
@@ -175,15 +203,11 @@ where
             .any(|message| matches!(message, Message::System(_)));
 
         if !has_system_message_in_messages && self.system.is_none() {
-            anyhow::bail!(
-                "either set the `system` field or provide a system message in `messages` array"
-            )
+            return Err(GenerateObjectRequestBuilderError::MissingSytemMessage);
         }
 
         if has_system_message_in_messages && self.system.is_some() {
-            anyhow::bail!(
-                "cannot set `system` field and also have a system message in `messages` array"
-            );
+            return Err(GenerateObjectRequestBuilderError::RedundantSystemMessage);
         }
 
         if !has_system_message_in_messages {
@@ -197,7 +221,6 @@ where
 
         Ok(GenerateObjectRequest {
             model: self.model.unwrap(),
-            provider: self.provider.unwrap(),
             messages: self.messages,
             max_output_tokens: self.max_output_tokens,
             temperature: self.temperature,
@@ -206,9 +229,19 @@ where
             presence_penalty: self.presence_penalty,
             seed: self.seed,
             max_retries: self.max_retries.unwrap_or(3),
-            headers: self.headers,
+            headers: utils::build_header_map(self.headers.as_slice()).unwrap_or_default(),
             output_type: PhantomData,
             output_schema: self.output_schema,
+            timeout: self.timeout.unwrap_or(Duration::from_mins(3)),
         })
+    }
+}
+
+impl<T> Default for GenerateObjectRequestBuilder<T>
+where
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }

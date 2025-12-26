@@ -29,6 +29,7 @@ impl MemoryService for ServiceImpl {
                 .agent_id(agent_id)
                 .run_id(run_id)
                 .build(),
+            None,
         )
         .await
         .map_err(|e| Status::new(Code::Internal, e.to_string()))?;

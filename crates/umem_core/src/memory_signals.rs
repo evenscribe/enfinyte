@@ -8,7 +8,7 @@ pub enum MemorySignalsError {
     DeadMemory,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, schemars::JsonSchema, Clone, Default, Deserialize)]
 pub struct MemorySignals {
     certainty: Credence,
     salience: Credence,

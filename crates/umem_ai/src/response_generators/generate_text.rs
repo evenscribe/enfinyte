@@ -1,26 +1,46 @@
 use crate::response_generators::messages::Message;
+use crate::utils;
 use crate::utils::is_retryable_error;
-use crate::LLMProvider;
-use anyhow::anyhow;
-use anyhow::Result;
+use crate::AIProvider;
+use crate::ResponseGeneratorError;
 use backon::ExponentialBuilder;
 use backon::Retryable;
+use reqwest::header::HeaderMap;
 use std::sync::Arc;
+use std::time::Duration;
+use thiserror::Error;
 
 // TODO: Wrap me with observers for logging, metrics, tracing, etc.
-pub async fn generate_text(request: GenerateTextRequest) -> Result<GenerateTextResponse> {
+pub async fn generate_text(
+    request: GenerateTextRequest,
+) -> Result<GenerateTextResponse, ResponseGeneratorError> {
+    let per_request_timeout = request.timeout;
+    let max_retries = request.max_retries;
+    let total_delay = per_request_timeout.mul_f32(max_retries as f32 / 2.0);
+
     let generation = || {
         let provider = Arc::clone(&request.provider);
         let request = request.clone();
-        async move { provider.do_generate_text(request).await }
+        async move {
+            tokio::time::timeout(per_request_timeout, provider.do_generate_text(request))
+                .await
+                .map_err(ResponseGeneratorError::TimeoutError)
+                .flatten()
+        }
     };
 
     generation
-        .retry(ExponentialBuilder::default().with_max_times(request.max_retries))
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_times(max_retries)
+                .with_total_delay(Some(total_delay)),
+        )
         .sleep(tokio::time::sleep)
         .when(is_retryable_error)
+        .notify(|err, dur| {
+            tracing::debug!("retrying {:?} after {:?}", err, dur);
+        })
         .await
-        .map_err(|e| anyhow!(e))
 }
 
 #[derive(Debug)]
@@ -31,7 +51,7 @@ pub struct GenerateTextResponse {
 #[derive(Clone)]
 pub struct GenerateTextRequest {
     pub model: String,
-    pub provider: Arc<LLMProvider>,
+    pub provider: Arc<AIProvider>,
     pub messages: Vec<Message>,
     pub max_output_tokens: Option<usize>,
     pub temperature: Option<f32>,
@@ -40,12 +60,28 @@ pub struct GenerateTextRequest {
     pub presence_penalty: Option<f32>,
     pub seed: Option<u64>,
     pub max_retries: usize,
-    pub headers: Vec<(String, String)>,
+    pub headers: HeaderMap,
+    pub timeout: Duration,
+}
+
+#[derive(Debug, Error)]
+pub enum GenerateTextRequestBuilderError {
+    #[error("either set the `system` field or provide a system message in `messages` array")]
+    RedundantSystemMessage,
+
+    #[error("missing system message")]
+    MissingSytemMessage,
+
+    #[error("missing model")]
+    MissingModel,
+
+    #[error("missing provider")]
+    MissingProvider,
 }
 
 pub struct GenerateTextRequestBuilder {
     pub model: Option<String>,
-    pub provider: Option<Arc<LLMProvider>>,
+    pub provider: Option<Arc<AIProvider>>,
     pub system: Option<String>,
     pub prompt: Option<String>,
     pub messages: Vec<Message>,
@@ -57,6 +93,7 @@ pub struct GenerateTextRequestBuilder {
     pub seed: Option<u64>,
     pub max_retries: Option<usize>,
     pub headers: Vec<(String, String)>,
+    pub duration: Option<Duration>,
 }
 
 impl GenerateTextRequestBuilder {
@@ -75,26 +112,27 @@ impl GenerateTextRequestBuilder {
             max_retries: None,
             headers: vec![],
             messages: vec![],
+            duration: Some(Duration::from_secs(60)),
         }
     }
 
-    pub fn model(mut self, model: String) -> Self {
-        self.model = Some(model);
+    pub fn model(mut self, model: impl Into<String>) -> Self {
+        self.model = Some(model.into());
         self
     }
 
-    pub fn provider(mut self, provider: Arc<LLMProvider>) -> Self {
+    pub fn provider(mut self, provider: Arc<AIProvider>) -> Self {
         self.provider = Some(provider);
         self
     }
 
-    pub fn system(mut self, system: String) -> Self {
-        self.system = Some(system);
+    pub fn system(mut self, system: impl Into<String>) -> Self {
+        self.system = Some(system.into());
         self
     }
 
-    pub fn prompt(mut self, prompt: String) -> Self {
-        self.prompt = Some(prompt);
+    pub fn prompt(mut self, prompt: impl Into<String>) -> Self {
+        self.prompt = Some(prompt.into());
         self
     }
 
@@ -143,22 +181,23 @@ impl GenerateTextRequestBuilder {
         self
     }
 
-    pub fn build(mut self) -> Result<GenerateTextRequest> {
+    pub fn timeout(mut self, duration: Duration) -> Self {
+        self.duration = Some(duration);
+        self
+    }
+
+    pub fn build(mut self) -> Result<GenerateTextRequest, GenerateTextRequestBuilderError> {
         let has_system_message_in_messages = self
             .messages
             .iter()
             .any(|message| matches!(message, Message::System(_)));
 
         if !has_system_message_in_messages && self.system.is_none() {
-            anyhow::bail!(
-                "either set the `system` field or provide a system message in `messages` array"
-            )
+            return Err(GenerateTextRequestBuilderError::MissingSytemMessage);
         }
 
         if has_system_message_in_messages && self.system.is_some() {
-            anyhow::bail!(
-                "cannot set `system` field and also have a system message in `messages` array"
-            );
+            return Err(GenerateTextRequestBuilderError::RedundantSystemMessage);
         }
 
         if !has_system_message_in_messages {
@@ -171,17 +210,28 @@ impl GenerateTextRequestBuilder {
         }
 
         Ok(GenerateTextRequest {
-            model: self.model.ok_or(anyhow!("model is required"))?,
+            model: self
+                .model
+                .ok_or(GenerateTextRequestBuilderError::MissingModel)?,
             messages: self.messages,
-            provider: self.provider.ok_or(anyhow!("provider is required"))?,
+            provider: self
+                .provider
+                .ok_or(GenerateTextRequestBuilderError::MissingProvider)?,
             max_output_tokens: self.max_output_tokens,
             top_p: self.top_p,
             top_k: self.top_k,
             presence_penalty: self.presence_penalty,
             seed: self.seed,
             max_retries: self.max_retries.unwrap_or(3),
-            headers: self.headers,
+            headers: utils::build_header_map(self.headers.as_slice()).unwrap_or_default(),
             temperature: self.temperature,
+            timeout: self.duration.unwrap_or(Duration::from_secs(60)),
         })
+    }
+}
+
+impl Default for GenerateTextRequestBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }

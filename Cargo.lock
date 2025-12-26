@@ -4265,11 +4265,13 @@ dependencies = [
  "anyhow",
  "dirs",
  "dotenv",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
  "umem_config",
+ "umem_controller",
  "umem_grpc_server",
  "umem_mcp",
 ]
@@ -4292,6 +4294,19 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tracing",
+ "umem_config",
+]
+
+[[package]]
+name = "umem_annotations"
+version = "0.1.0"
+dependencies = [
+ "schemars",
+ "serde",
+ "thiserror 2.0.17",
+ "typed-builder",
+ "umem_ai",
+ "umem_core",
 ]
 
 [[package]]
@@ -4315,6 +4330,8 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.17",
  "typed-builder",
+ "umem_ai",
+ "umem_annotations",
  "umem_core",
  "umem_embeddings",
  "umem_vector_store",
@@ -4327,6 +4344,7 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "rustc-hash 2.1.1",
+ "schemars",
  "serde",
  "thiserror 2.0.17",
  "typed-builder",

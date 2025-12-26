@@ -11,6 +11,27 @@ pub struct Cloudflare {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct OpenAI {
+    pub api_key: String,
+    pub base_url: String,
+    pub default_headers: Option<Vec<(String, String)>>,
+    pub organization: Option<String>,
+    pub project: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum Provider {
+    #[serde(rename = "openai")]
+    OpenAI(OpenAI),
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct LanguageModel {
+    pub provider: Provider,
+    pub model_name: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Grpc {
     pub server_addr: SocketAddr,
 }
@@ -64,6 +85,7 @@ pub enum VectorStore {
 pub struct AppConfig {
     pub vector_store: VectorStore,
     pub embedder: Embedder,
+    pub language_model: LanguageModel,
     pub mcp: Option<Mcp>,
     pub grpc: Option<Grpc>,
 }

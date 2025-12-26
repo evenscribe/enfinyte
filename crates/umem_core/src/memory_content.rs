@@ -17,7 +17,7 @@ pub enum MemoryContentError {
     TagNotFound(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, schemars::JsonSchema, Clone, PartialEq, Default, Eq, Serialize, Deserialize)]
 pub struct MemoryContent {
     summary: String,
     tags: Vec<String>,

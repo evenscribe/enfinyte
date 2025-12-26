@@ -5,19 +5,20 @@ use crate::{
         messages::{FilePart, Message, UserMessagePart, UserModelMessage},
         GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
     },
-    GeneratesObject, GeneratesText,
+    utils, GeneratesObject, GeneratesText,
 };
-use anyhow::{bail, Result};
 use async_trait::async_trait;
 use base64::Engine;
+use reqwest::header::HeaderMap;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{Map, Value};
+use thiserror::Error;
 
 pub struct OpenAIProvider {
     pub api_key: String,
     pub base_url: String,
-    pub default_headers: Vec<(String, String)>,
+    pub default_headers: HeaderMap,
     pub organization: Option<String>,
     pub project: Option<String>,
 }
@@ -28,17 +29,17 @@ impl OpenAIProvider {
     >(
         &self,
         request: &GenerateObjectRequest<T>,
-    ) -> Result<String> {
+    ) -> String {
         let system = self.normalize_system_message(&request.messages);
-        let normalized_user_messages = self.normalize_user_messages(&request.messages)?;
+        let normalized_user_messages = self.normalize_user_messages(&request.messages);
         let schema = request.output_schema.clone();
         let name = std::any::type_name::<T>()
             .split("::")
             .last()
             .unwrap_or("ObjectName");
 
-        Ok(serde_json::json!({
-            "model": request.model,
+        serde_json::json!({
+            "model": request.model.model_name,
             "instructions":system,
             "input": [serde_json::json!({
                 "type": "message",
@@ -54,18 +55,21 @@ impl OpenAIProvider {
             "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
             "temperature": request.temperature.unwrap_or(1.0),
             "top_p": request.top_p.unwrap_or(1.0),
+            "top_k": request.top_k.unwrap_or(0),
+            "seed": request.seed.unwrap_or(0),
+            "presence_penalty": request.presence_penalty.unwrap_or(0.0),
             "reasoning" : serde_json::json!({
                 "effort": "low"
             })
         })
-        .to_string())
+        .to_string()
     }
 
-    pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> Result<String> {
+    pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> String {
         let system = self.normalize_system_message(&request.messages);
-        let normalized_user_messages = self.normalize_user_messages(&request.messages)?;
+        let normalized_user_messages = self.normalize_user_messages(&request.messages);
 
-        Ok(serde_json::json!({
+        serde_json::json!({
             "model": request.model,
             "instructions":system,
             "input": [serde_json::json!({
@@ -76,11 +80,14 @@ impl OpenAIProvider {
             "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
             "temperature": request.temperature.unwrap_or(1.0),
             "top_p": request.top_p.unwrap_or(1.0),
+            "top_k": request.top_k.unwrap_or(0),
+            "seed": request.seed.unwrap_or(0),
+            "presence_penalty": request.presence_penalty.unwrap_or(0.0),
             "reasoning" : serde_json::json!({
                 "effort": "low"
             })
         })
-        .to_string())
+        .to_string()
     }
 
     fn normalize_system_message(&self, messages: &[Message]) -> String {
@@ -94,7 +101,7 @@ impl OpenAIProvider {
             .into()
     }
 
-    fn normalize_user_messages(&self, messages: &[Message]) -> Result<Vec<Value>> {
+    fn normalize_user_messages(&self, messages: &[Message]) -> Vec<Value> {
         let user_messages: Vec<&UserModelMessage> = messages
             .iter()
             .filter_map(|msg| match msg {
@@ -103,7 +110,7 @@ impl OpenAIProvider {
             })
             .collect();
 
-        let input: Vec<serde_json::Value> = user_messages
+        user_messages
             .iter()
             .flat_map(|um| match um {
                 UserModelMessage::Text(input_text) => {
@@ -146,9 +153,7 @@ impl OpenAIProvider {
                     })
                     .collect(),
             })
-            .collect();
-
-        Ok(input)
+            .collect()
     }
 }
 
@@ -158,18 +163,26 @@ impl GeneratesText for OpenAIProvider {
         &self,
         request: GenerateTextRequest,
     ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
-        let request_body = self.normalize_generate_text_request(&request)?;
+        let request_body = self.normalize_generate_text_request(&request);
 
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header(
+                "OpenAI-Organization",
+                self.organization.clone().unwrap_or_default(),
+            )
+            .header("OpenAI-Project", self.project.clone().unwrap_or_default())
             .header("Content-Type", "application/json")
+            .headers(self.default_headers.clone())
+            .headers(request.headers)
             .body(request_body)
             .send()
             .await?
             .error_for_status()?
             .json::<OpenAIResponsesApiResponse>()
             .await?;
+
         let output_text = response
             .output
             .iter()
@@ -201,12 +214,19 @@ impl GeneratesObject for OpenAIProvider {
     where
         T: Clone + JsonSchema + Serialize + DeserializeOwned + Send + Sync,
     {
-        let request_body = self.normalize_generate_object_request(&request)?;
+        let request_body = self.normalize_generate_object_request(&request);
 
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header(
+                "OpenAI-Organization",
+                self.organization.clone().unwrap_or_default(),
+            )
+            .header("OpenAI-Project", self.project.clone().unwrap_or_default())
             .header("Content-Type", "application/json")
+            .headers(self.default_headers.clone())
+            .headers(request.headers)
             .body(request_body)
             .send()
             .await?
@@ -318,6 +338,12 @@ pub struct OpenAIProviderBuilder {
     pub project: Option<String>,
 }
 
+#[derive(Error, Debug)]
+pub enum OpenAIProviderBuilderError {
+    #[error("api key must be passed")]
+    MissingApiKey,
+}
+
 impl OpenAIProviderBuilder {
     pub fn new() -> Self {
         OpenAIProviderBuilder {
@@ -354,9 +380,9 @@ impl OpenAIProviderBuilder {
         self
     }
 
-    pub fn build(self) -> Result<OpenAIProvider> {
+    pub fn build(self) -> Result<OpenAIProvider, OpenAIProviderBuilderError> {
         if self.api_key.is_none() {
-            bail!("api_key is required");
+            return Err(OpenAIProviderBuilderError::MissingApiKey);
         }
 
         Ok(OpenAIProvider {
@@ -364,10 +390,19 @@ impl OpenAIProviderBuilder {
             base_url: self
                 .base_url
                 .unwrap_or("https://api.openai.com/v1".to_string()),
-            default_headers: self.default_headers.unwrap_or_default(),
+            default_headers: utils::build_header_map(
+                self.default_headers.unwrap_or(vec![]).as_slice(),
+            )
+            .unwrap_or_default(),
             organization: self.organization,
             project: self.project,
         })
+    }
+}
+
+impl Default for OpenAIProviderBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -379,12 +414,12 @@ mod tests {
             generate_object::{generate_object, GenerateObjectRequestBuilder},
             generate_text, GenerateTextRequestBuilder,
         },
-        LLMProvider,
+        LLMProvider, LLM,
     };
     use std::sync::Arc;
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_generate_object() -> () {
+    async fn test_generate_object() {
         let provider = Arc::new(LLMProvider::from(
             OpenAIProviderBuilder::new()
                 .api_key("")
@@ -399,11 +434,15 @@ mod tests {
             traditions: String,
         }
 
+        let llm = Arc::new(LLM {
+            provider,
+            model_name: "allenai/olmo-3.1-32b-think:free".to_string(),
+        });
+
         let request = GenerateObjectRequestBuilder::<Holiday>::new()
-            .model("allenai/olmo-3.1-32b-think:free".to_string())
+            .model(llm)
             .system("You are a helpful assistant.".to_string())
             .prompt("Invent a new holiday and describe its traditions.".to_string())
-            .provider(Arc::clone(&provider))
             .max_output_tokens(2000)
             .temperature(0.7)
             .build()
@@ -415,7 +454,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_generate_text() -> () {
+    async fn test_generate_text() {
         let provider = Arc::new(LLMProvider::from(
             OpenAIProviderBuilder::new()
                 .api_key("")

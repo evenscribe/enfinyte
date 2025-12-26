@@ -53,7 +53,7 @@ pub enum MemoryError {
     ActiveWithArchivedTimestamp,
 }
 
-#[derive(TypedBuilder, Serialize, Deserialize)]
+#[derive(TypedBuilder, Serialize, Default, Deserialize)]
 pub struct Memory {
     id: Uuid,
     context: MemoryContext,

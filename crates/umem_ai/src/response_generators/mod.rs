@@ -14,6 +14,6 @@ pub enum ResponseGeneratorError {
     Serialization(#[from] serde_json::Error),
     #[error(transparent)]
     Transient(#[from] anyhow::Error),
+    #[error(transparent)]
+    TimeoutError(#[from] tokio::time::error::Elapsed),
 }
-
-pub type GenerateTextError = ResponseGeneratorError;
