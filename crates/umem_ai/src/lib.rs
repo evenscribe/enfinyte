@@ -4,6 +4,8 @@ mod providers;
 mod response_generators;
 pub(crate) mod utils;
 
+use std::sync::Arc;
+
 use anyhow::Result;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
@@ -12,6 +14,7 @@ use serde::{de::DeserializeOwned, Serialize};
 
 pub use providers::*;
 pub use response_generators::*;
+use umem_config::CONFIG;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
@@ -19,7 +22,25 @@ lazy_static! {
     static ref reqwest_client: reqwest::Client = reqwest::Client::new();
 }
 
-pub enum LLMProvider {
+pub struct LanguageModel {
+    pub provider: Arc<AIProvider>,
+    pub model_name: String,
+}
+
+impl LanguageModel {
+    fn new(provider: Arc<AIProvider>, model_name: String) -> Self {
+        Self {
+            provider,
+            model_name,
+        }
+    }
+
+    pub fn get_model() -> Arc<LanguageModel> {
+        Arc::clone(&LANGUAGE_MODEL)
+    }
+}
+
+pub enum AIProvider {
     OpenAI(OpenAIProvider),
     AzureOpenAI(AzureOpenAIProvider),
     GoogleVertexAI(GoogleVertexAIProvider),
@@ -28,13 +49,41 @@ pub enum LLMProvider {
     AmazonBedrock(AmazonBedrockProvider),
 }
 
-impl LLMProvider {
+lazy_static! {
+    static ref LANGUAGE_MODEL: Arc<LanguageModel> = match CONFIG.language_model.provider.clone() {
+        umem_config::Provider::OpenAI(open_ai) => {
+            let mut builder = OpenAIProviderBuilder::new()
+                .api_key(open_ai.api_key)
+                .base_url(open_ai.base_url);
+
+            if let Some(default_headers) = open_ai.default_headers {
+                builder = builder.default_headers(default_headers);
+            }
+
+            if let Some(project) = open_ai.project {
+                builder = builder.project(project);
+            }
+
+            if let Some(organization) = open_ai.organization {
+                builder = builder.organization(organization);
+            }
+
+            let provider = Arc::new(AIProvider::from(builder.build().unwrap()));
+            Arc::new(LanguageModel {
+                provider,
+                model_name: CONFIG.language_model.model_name.clone(),
+            })
+        }
+    };
+}
+
+impl AIProvider {
     pub(crate) async fn do_generate_text(
         &self,
         request: GenerateTextRequest,
     ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
         match self {
-            LLMProvider::OpenAI(provider) => provider.generate_text(request),
+            AIProvider::OpenAI(provider) => provider.generate_text(request),
             _ => unimplemented!(),
         }
         .await
@@ -47,7 +96,7 @@ impl LLMProvider {
         request: GenerateObjectRequest<T>,
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError> {
         match self {
-            LLMProvider::OpenAI(provider) => provider.generate_object(request),
+            AIProvider::OpenAI(provider) => provider.generate_object(request),
             _ => unimplemented!(),
         }
         .await
@@ -70,38 +119,38 @@ pub trait GeneratesObject {
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>;
 }
 
-impl From<OpenAIProvider> for LLMProvider {
+impl From<OpenAIProvider> for AIProvider {
     fn from(config: OpenAIProvider) -> Self {
-        LLMProvider::OpenAI(config)
+        AIProvider::OpenAI(config)
     }
 }
 
-impl From<AzureOpenAIProvider> for LLMProvider {
+impl From<AzureOpenAIProvider> for AIProvider {
     fn from(config: AzureOpenAIProvider) -> Self {
-        LLMProvider::AzureOpenAI(config)
+        AIProvider::AzureOpenAI(config)
     }
 }
 
-impl From<AnthropicProvider> for LLMProvider {
+impl From<AnthropicProvider> for AIProvider {
     fn from(config: AnthropicProvider) -> Self {
-        LLMProvider::Anthropic(config)
+        AIProvider::Anthropic(config)
     }
 }
 
-impl From<XAIProvider> for LLMProvider {
+impl From<XAIProvider> for AIProvider {
     fn from(config: XAIProvider) -> Self {
-        LLMProvider::XAI(config)
+        AIProvider::XAI(config)
     }
 }
 
-impl From<AmazonBedrockProvider> for LLMProvider {
+impl From<AmazonBedrockProvider> for AIProvider {
     fn from(config: AmazonBedrockProvider) -> Self {
-        LLMProvider::AmazonBedrock(config)
+        AIProvider::AmazonBedrock(config)
     }
 }
 
-impl From<GoogleVertexAIProvider> for LLMProvider {
+impl From<GoogleVertexAIProvider> for AIProvider {
     fn from(config: GoogleVertexAIProvider) -> Self {
-        LLMProvider::GoogleVertexAI(config)
+        AIProvider::GoogleVertexAI(config)
     }
 }

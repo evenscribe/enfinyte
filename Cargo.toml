@@ -44,7 +44,9 @@ schemars = "1.1.0"
 [dependencies]
 umem_grpc_server = { workspace = true }
 umem_mcp = { workspace = true }
+thiserror = { workspace = true }
 umem_config = { workspace = true }
+umem_controller = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true }

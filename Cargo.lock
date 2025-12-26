@@ -4265,11 +4265,13 @@ dependencies = [
  "anyhow",
  "dirs",
  "dotenv",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
  "umem_config",
+ "umem_controller",
  "umem_grpc_server",
  "umem_mcp",
 ]
@@ -4292,6 +4294,7 @@ dependencies = [
  "thiserror 2.0.17",
  "tokio",
  "tracing",
+ "umem_config",
 ]
 
 [[package]]

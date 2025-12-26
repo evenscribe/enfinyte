@@ -7,13 +7,13 @@ use crate::{
     },
     utils, GeneratesObject, GeneratesText,
 };
-use anyhow::{bail, Result};
 use async_trait::async_trait;
 use base64::Engine;
 use reqwest::header::HeaderMap;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{Map, Value};
+use thiserror::Error;
 
 pub struct OpenAIProvider {
     pub api_key: String,
@@ -29,7 +29,7 @@ impl OpenAIProvider {
     >(
         &self,
         request: &GenerateObjectRequest<T>,
-    ) -> Result<String> {
+    ) -> String {
         let system = self.normalize_system_message(&request.messages);
         let normalized_user_messages = self.normalize_user_messages(&request.messages);
         let schema = request.output_schema.clone();
@@ -38,8 +38,8 @@ impl OpenAIProvider {
             .last()
             .unwrap_or("ObjectName");
 
-        Ok(serde_json::json!({
-            "model": request.model,
+        serde_json::json!({
+            "model": request.model.model_name,
             "instructions":system,
             "input": [serde_json::json!({
                 "type": "message",
@@ -62,14 +62,14 @@ impl OpenAIProvider {
                 "effort": "low"
             })
         })
-        .to_string())
+        .to_string()
     }
 
-    pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> Result<String> {
+    pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> String {
         let system = self.normalize_system_message(&request.messages);
         let normalized_user_messages = self.normalize_user_messages(&request.messages);
 
-        Ok(serde_json::json!({
+        serde_json::json!({
             "model": request.model,
             "instructions":system,
             "input": [serde_json::json!({
@@ -87,7 +87,7 @@ impl OpenAIProvider {
                 "effort": "low"
             })
         })
-        .to_string())
+        .to_string()
     }
 
     fn normalize_system_message(&self, messages: &[Message]) -> String {
@@ -163,7 +163,7 @@ impl GeneratesText for OpenAIProvider {
         &self,
         request: GenerateTextRequest,
     ) -> Result<GenerateTextResponse, ResponseGeneratorError> {
-        let request_body = self.normalize_generate_text_request(&request)?;
+        let request_body = self.normalize_generate_text_request(&request);
 
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
@@ -214,7 +214,7 @@ impl GeneratesObject for OpenAIProvider {
     where
         T: Clone + JsonSchema + Serialize + DeserializeOwned + Send + Sync,
     {
-        let request_body = self.normalize_generate_object_request(&request)?;
+        let request_body = self.normalize_generate_object_request(&request);
 
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
@@ -338,6 +338,12 @@ pub struct OpenAIProviderBuilder {
     pub project: Option<String>,
 }
 
+#[derive(Error, Debug)]
+pub enum OpenAIProviderBuilderError {
+    #[error("api key must be passed")]
+    MissingApiKey,
+}
+
 impl OpenAIProviderBuilder {
     pub fn new() -> Self {
         OpenAIProviderBuilder {
@@ -374,9 +380,9 @@ impl OpenAIProviderBuilder {
         self
     }
 
-    pub fn build(self) -> Result<OpenAIProvider> {
+    pub fn build(self) -> Result<OpenAIProvider, OpenAIProviderBuilderError> {
         if self.api_key.is_none() {
-            bail!("api_key is required");
+            return Err(OpenAIProviderBuilderError::MissingApiKey);
         }
 
         Ok(OpenAIProvider {
@@ -408,7 +414,7 @@ mod tests {
             generate_object::{generate_object, GenerateObjectRequestBuilder},
             generate_text, GenerateTextRequestBuilder,
         },
-        LLMProvider,
+        LLMProvider, LLM,
     };
     use std::sync::Arc;
 
@@ -428,11 +434,15 @@ mod tests {
             traditions: String,
         }
 
+        let llm = Arc::new(LLM {
+            provider,
+            model_name: "allenai/olmo-3.1-32b-think:free".to_string(),
+        });
+
         let request = GenerateObjectRequestBuilder::<Holiday>::new()
-            .model("allenai/olmo-3.1-32b-think:free".to_string())
+            .model(llm)
             .system("You are a helpful assistant.".to_string())
             .prompt("Invent a new holiday and describe its traditions.".to_string())
-            .provider(Arc::clone(&provider))
             .max_output_tokens(2000)
             .temperature(0.7)
             .build()

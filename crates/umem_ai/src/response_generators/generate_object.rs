@@ -1,5 +1,5 @@
-use crate::{response_generators::messages::Message, utils::is_retryable_error, LLMProvider};
-use crate::{utils, ResponseGeneratorError};
+use crate::{response_generators::messages::Message, utils::is_retryable_error};
+use crate::{utils, LanguageModel, ResponseGeneratorError};
 use backon::{ExponentialBuilder, Retryable};
 use reqwest::header::HeaderMap;
 use schemars::{schema_for, JsonSchema, Schema};
@@ -19,7 +19,8 @@ where
     let total_delay = per_request_timeout.mul_f32(max_retries as f32 / 2.0);
 
     let generation = || {
-        let provider = Arc::clone(&request.provider);
+        let model = Arc::clone(&request.model);
+        let provider = Arc::clone(&model.provider);
         let request = request.clone();
         async move {
             tokio::time::timeout(per_request_timeout, provider.do_generate_object(request))
@@ -53,9 +54,6 @@ pub enum GenerateObjectRequestBuilderError {
 
     #[error("missing model")]
     MissingModel,
-
-    #[error("missing provider")]
-    MissingProvider,
 }
 
 #[derive(Clone)]
@@ -63,8 +61,7 @@ pub struct GenerateObjectRequest<T>
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
-    pub model: String,
-    pub provider: Arc<LLMProvider>,
+    pub model: Arc<LanguageModel>,
     pub messages: Vec<Message>,
     pub max_output_tokens: Option<usize>,
     pub temperature: Option<f32>,
@@ -88,8 +85,7 @@ pub struct GenerateObjectRequestBuilder<T>
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
-    pub model: Option<String>,
-    pub provider: Option<Arc<LLMProvider>>,
+    pub model: Option<Arc<LanguageModel>>,
     pub system: Option<String>,
     pub prompt: Option<String>,
     pub messages: Vec<Message>,
@@ -114,7 +110,6 @@ where
         let schema = schema_for!(T);
         GenerateObjectRequestBuilder {
             model: None,
-            provider: None,
             system: None,
             prompt: None,
             messages: Vec::new(),
@@ -132,13 +127,8 @@ where
         }
     }
 
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = Some(model.into());
-        self
-    }
-
-    pub fn provider(mut self, provider: Arc<LLMProvider>) -> Self {
-        self.provider = Some(provider);
+    pub fn model(mut self, model: Arc<LanguageModel>) -> Self {
+        self.model = Some(model);
         self
     }
 
@@ -206,9 +196,6 @@ where
         if self.model.is_none() {
             return Err(GenerateObjectRequestBuilderError::MissingModel);
         }
-        if self.provider.is_none() {
-            return Err(GenerateObjectRequestBuilderError::MissingProvider);
-        }
 
         let has_system_message_in_messages = self
             .messages
@@ -234,7 +221,6 @@ where
 
         Ok(GenerateObjectRequest {
             model: self.model.unwrap(),
-            provider: self.provider.unwrap(),
             messages: self.messages,
             max_output_tokens: self.max_output_tokens,
             temperature: self.temperature,

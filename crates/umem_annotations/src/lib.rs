@@ -5,7 +5,7 @@ use umem_core::{MemoryContent, MemoryKind, MemorySignals, Provenance};
 
 use umem_ai::{
     GenerateObjectRequestBuilder, GenerateObjectRequestBuilderError,
-    GenerateTextRequestBuilderError, LLMProvider, ResponseGeneratorError,
+    GenerateTextRequestBuilderError, LanguageModel, ResponseGeneratorError,
 };
 
 pub struct Annotation;
@@ -69,8 +69,8 @@ Infer the source of the content:
 ### method
 How this memory was derived:
 - **Direct**: The content is being stored as-is or with minimal transformation
-- **Extracted**: Information was extracted/summarized from larger content (include model name and original prompt if applicable)
-- **Summarized**: Content was condensed from a longer source (include model name if applicable)
+- **Extracted**: Information was extracted/summarized from larger content (include model name and system prompt)
+- **Summarized**: Content was condensed from a longer source (include model name)
 ---
 "#;
 
@@ -85,15 +85,12 @@ pub struct LLMAnnotated {
 impl Annotation {
     pub async fn generate(
         raw_content: impl Into<String>,
-        provider: Arc<LLMProvider>,
-        model_name: impl Into<String>,
-        system_prompt: Option<String>,
+        model: Arc<LanguageModel>,
     ) -> Result<LLMAnnotated, AnnotationError> {
         let request = GenerateObjectRequestBuilder::<LLMAnnotated>::new()
-            .model(model_name)
-            .system(system_prompt.unwrap_or(ANNOTATION_PROMPT.into()))
+            .model(model)
+            .system(ANNOTATION_PROMPT)
             .prompt(raw_content)
-            .provider(Arc::clone(&provider))
             .max_output_tokens(10000)
             .temperature(0.7)
             .build()?;

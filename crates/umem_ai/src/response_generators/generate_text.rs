@@ -1,7 +1,7 @@
 use crate::response_generators::messages::Message;
 use crate::utils;
 use crate::utils::is_retryable_error;
-use crate::LLMProvider;
+use crate::AIProvider;
 use crate::ResponseGeneratorError;
 use backon::ExponentialBuilder;
 use backon::Retryable;
@@ -51,7 +51,7 @@ pub struct GenerateTextResponse {
 #[derive(Clone)]
 pub struct GenerateTextRequest {
     pub model: String,
-    pub provider: Arc<LLMProvider>,
+    pub provider: Arc<AIProvider>,
     pub messages: Vec<Message>,
     pub max_output_tokens: Option<usize>,
     pub temperature: Option<f32>,
@@ -81,7 +81,7 @@ pub enum GenerateTextRequestBuilderError {
 
 pub struct GenerateTextRequestBuilder {
     pub model: Option<String>,
-    pub provider: Option<Arc<LLMProvider>>,
+    pub provider: Option<Arc<AIProvider>>,
     pub system: Option<String>,
     pub prompt: Option<String>,
     pub messages: Vec<Message>,
@@ -121,7 +121,7 @@ impl GenerateTextRequestBuilder {
         self
     }
 
-    pub fn provider(mut self, provider: Arc<LLMProvider>) -> Self {
+    pub fn provider(mut self, provider: Arc<AIProvider>) -> Self {
         self.provider = Some(provider);
         self
     }

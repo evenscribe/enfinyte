@@ -2,7 +2,7 @@ use chrono::Utc;
 use std::sync::Arc;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
-use umem_ai::{LLMProvider, OpenAIProviderBuilder};
+use umem_ai::LanguageModel;
 use umem_annotations::{Annotation, AnnotationError, LLMAnnotated};
 use umem_core::{
     LifecycleState, Memory, MemoryContentError, MemoryContext, MemoryContextError, MemoryError,
@@ -55,9 +55,12 @@ impl CreateMemoryRequest {
         Ok(())
     }
 
-    pub async fn build(self) -> Result<Memory, CreateMemoryRequestError> {
+    pub async fn build(
+        self,
+        model: Arc<LanguageModel>,
+    ) -> Result<Memory, CreateMemoryRequestError> {
         self.validate()?;
-        let annotations = self.annotations().await?;
+        let annotations = self.annotations(model).await?;
 
         Ok(Memory::builder()
             .id(Uuid::new_v4())
@@ -88,21 +91,10 @@ impl CreateMemoryRequest {
         unreachable!()
     }
 
-    async fn annotations(&self) -> Result<LLMAnnotated, CreateMemoryRequestError> {
-        let provider = Arc::new(LLMProvider::from(
-            OpenAIProviderBuilder::new()
-                .api_key("")
-                .base_url("")
-                .build()
-                .unwrap(),
-        ));
-
-        Ok(Annotation::generate(
-            &self.raw_content,
-            provider,
-            "arcee-ai/trinity-mini:free",
-            None,
-        )
-        .await?)
+    async fn annotations(
+        &self,
+        model: Arc<LanguageModel>,
+    ) -> Result<LLMAnnotated, CreateMemoryRequestError> {
+        Ok(Annotation::generate(&self.raw_content, model).await?)
     }
 }
