@@ -5,11 +5,12 @@ use crate::{
         messages::{FilePart, Message, UserMessagePart, UserModelMessage},
         GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
     },
-    GeneratesObject, GeneratesText,
+    utils, GeneratesObject, GeneratesText,
 };
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use base64::Engine;
+use reqwest::header::HeaderMap;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{Map, Value};
@@ -17,7 +18,7 @@ use serde_json::{Map, Value};
 pub struct OpenAIProvider {
     pub api_key: String,
     pub base_url: String,
-    pub default_headers: Vec<(String, String)>,
+    pub default_headers: HeaderMap,
     pub organization: Option<String>,
     pub project: Option<String>,
 }
@@ -30,7 +31,7 @@ impl OpenAIProvider {
         request: &GenerateObjectRequest<T>,
     ) -> Result<String> {
         let system = self.normalize_system_message(&request.messages);
-        let normalized_user_messages = self.normalize_user_messages(&request.messages)?;
+        let normalized_user_messages = self.normalize_user_messages(&request.messages);
         let schema = request.output_schema.clone();
         let name = std::any::type_name::<T>()
             .split("::")
@@ -63,7 +64,7 @@ impl OpenAIProvider {
 
     pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> Result<String> {
         let system = self.normalize_system_message(&request.messages);
-        let normalized_user_messages = self.normalize_user_messages(&request.messages)?;
+        let normalized_user_messages = self.normalize_user_messages(&request.messages);
 
         Ok(serde_json::json!({
             "model": request.model,
@@ -94,7 +95,7 @@ impl OpenAIProvider {
             .into()
     }
 
-    fn normalize_user_messages(&self, messages: &[Message]) -> Result<Vec<Value>> {
+    fn normalize_user_messages(&self, messages: &[Message]) -> Vec<Value> {
         let user_messages: Vec<&UserModelMessage> = messages
             .iter()
             .filter_map(|msg| match msg {
@@ -103,7 +104,7 @@ impl OpenAIProvider {
             })
             .collect();
 
-        let input: Vec<serde_json::Value> = user_messages
+        user_messages
             .iter()
             .flat_map(|um| match um {
                 UserModelMessage::Text(input_text) => {
@@ -146,9 +147,7 @@ impl OpenAIProvider {
                     })
                     .collect(),
             })
-            .collect();
-
-        Ok(input)
+            .collect()
     }
 }
 
@@ -207,6 +206,8 @@ impl GeneratesObject for OpenAIProvider {
             .post(format!("{}/responses", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
             .header("Content-Type", "application/json")
+            .headers(self.default_headers.clone())
+            .headers(request.headers)
             .body(request_body)
             .send()
             .await?
@@ -364,10 +365,19 @@ impl OpenAIProviderBuilder {
             base_url: self
                 .base_url
                 .unwrap_or("https://api.openai.com/v1".to_string()),
-            default_headers: self.default_headers.unwrap_or_default(),
+            default_headers: utils::build_header_map(
+                self.default_headers.unwrap_or(vec![]).as_slice(),
+            )
+            .unwrap_or(HeaderMap::new()),
             organization: self.organization,
             project: self.project,
         })
+    }
+}
+
+impl Default for OpenAIProviderBuilder {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -384,7 +394,7 @@ mod tests {
     use std::sync::Arc;
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_generate_object() -> () {
+    async fn test_generate_object() {
         let provider = Arc::new(LLMProvider::from(
             OpenAIProviderBuilder::new()
                 .api_key("")
@@ -415,7 +425,7 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    async fn test_generate_text() -> () {
+    async fn test_generate_text() {
         let provider = Arc::new(LLMProvider::from(
             OpenAIProviderBuilder::new()
                 .api_key("")

@@ -1,8 +1,10 @@
-use crate::ResponseGeneratorError;
 use crate::{response_generators::messages::Message, utils::is_retryable_error, LLMProvider};
+use crate::{utils, ResponseGeneratorError};
 use backon::{ExponentialBuilder, Retryable};
+use reqwest::header::HeaderMap;
 use schemars::{schema_for, JsonSchema, Schema};
 use serde::{de::DeserializeOwned, Serialize};
+use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 use thiserror::Error;
 
@@ -12,16 +14,32 @@ pub async fn generate_object<T>(
 where
     T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
 {
+    let per_request_timeout = request.timeout;
+    let max_retries = request.max_retries;
+    let total_delay = per_request_timeout.mul_f32(max_retries as f32 / 2.0);
+
     let generation = || {
         let provider = Arc::clone(&request.provider);
         let request = request.clone();
-        async move { provider.do_generate_object::<T>(request).await }
+        async move {
+            tokio::time::timeout(per_request_timeout, provider.do_generate_object(request))
+                .await
+                .map_err(ResponseGeneratorError::TimeoutError)
+                .flatten()
+        }
     };
 
     generation
-        .retry(ExponentialBuilder::default().with_max_times(request.max_retries))
+        .retry(
+            ExponentialBuilder::default()
+                .with_max_times(max_retries)
+                .with_total_delay(Some(total_delay)),
+        )
         .sleep(tokio::time::sleep)
         .when(is_retryable_error)
+        .notify(|err, dur| {
+            tracing::debug!("retrying {:?} after {:?}", err, dur);
+        })
         .await
 }
 
@@ -55,9 +73,10 @@ where
     pub presence_penalty: Option<f32>,
     pub seed: Option<u64>,
     pub max_retries: usize,
-    pub headers: Vec<(String, String)>,
+    pub headers: HeaderMap,
     pub output_type: PhantomData<T>,
     pub output_schema: Schema,
+    pub timeout: Duration,
 }
 
 #[derive(Debug)]
@@ -84,6 +103,7 @@ where
     pub headers: Vec<(String, String)>,
     pub output_type: PhantomData<T>,
     pub output_schema: Schema,
+    pub timeout: Option<Duration>,
 }
 
 impl<T> GenerateObjectRequestBuilder<T>
@@ -107,6 +127,7 @@ where
             max_retries: None,
             headers: Vec::new(),
             output_type: PhantomData,
+            timeout: Some(Duration::from_mins(3)),
             output_schema: schema,
         }
     }
@@ -176,6 +197,11 @@ where
         self
     }
 
+    pub fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
     pub fn build(mut self) -> Result<GenerateObjectRequest<T>, GenerateObjectRequestBuilderError> {
         if self.model.is_none() {
             return Err(GenerateObjectRequestBuilderError::MissingModel);
@@ -217,9 +243,19 @@ where
             presence_penalty: self.presence_penalty,
             seed: self.seed,
             max_retries: self.max_retries.unwrap_or(3),
-            headers: self.headers,
+            headers: utils::build_header_map(self.headers.as_slice()).unwrap_or_default(),
             output_type: PhantomData,
             output_schema: self.output_schema,
+            timeout: self.timeout.unwrap_or(Duration::from_mins(3)),
         })
+    }
+}
+
+impl<T> Default for GenerateObjectRequestBuilder<T>
+where
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
+{
+    fn default() -> Self {
+        Self::new()
     }
 }
