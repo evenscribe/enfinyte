@@ -55,6 +55,9 @@ impl OpenAIProvider {
             "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
             "temperature": request.temperature.unwrap_or(1.0),
             "top_p": request.top_p.unwrap_or(1.0),
+            "top_k": request.top_k.unwrap_or(0),
+            "seed": request.seed.unwrap_or(0),
+            "presence_penalty": request.presence_penalty.unwrap_or(0.0),
             "reasoning" : serde_json::json!({
                 "effort": "low"
             })
@@ -77,6 +80,9 @@ impl OpenAIProvider {
             "max_output_tokens": request.max_output_tokens.unwrap_or(8192),
             "temperature": request.temperature.unwrap_or(1.0),
             "top_p": request.top_p.unwrap_or(1.0),
+            "top_k": request.top_k.unwrap_or(0),
+            "seed": request.seed.unwrap_or(0),
+            "presence_penalty": request.presence_penalty.unwrap_or(0.0),
             "reasoning" : serde_json::json!({
                 "effort": "low"
             })
@@ -162,13 +168,21 @@ impl GeneratesText for OpenAIProvider {
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header(
+                "OpenAI-Organization",
+                self.organization.clone().unwrap_or_default(),
+            )
+            .header("OpenAI-Project", self.project.clone().unwrap_or_default())
             .header("Content-Type", "application/json")
+            .headers(self.default_headers.clone())
+            .headers(request.headers)
             .body(request_body)
             .send()
             .await?
             .error_for_status()?
             .json::<OpenAIResponsesApiResponse>()
             .await?;
+
         let output_text = response
             .output
             .iter()
@@ -205,6 +219,11 @@ impl GeneratesObject for OpenAIProvider {
         let response = reqwest_client
             .post(format!("{}/responses", self.base_url))
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header(
+                "OpenAI-Organization",
+                self.organization.clone().unwrap_or_default(),
+            )
+            .header("OpenAI-Project", self.project.clone().unwrap_or_default())
             .header("Content-Type", "application/json")
             .headers(self.default_headers.clone())
             .headers(request.headers)
@@ -368,7 +387,7 @@ impl OpenAIProviderBuilder {
             default_headers: utils::build_header_map(
                 self.default_headers.unwrap_or(vec![]).as_slice(),
             )
-            .unwrap_or(HeaderMap::new()),
+            .unwrap_or_default(),
             organization: self.organization,
             project: self.project,
         })
