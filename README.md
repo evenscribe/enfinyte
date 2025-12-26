@@ -1,196 +1,131 @@
-# Umem - External Memory Persistence for LLMs
+# Enfinyte
 
-> **Semantic memory layer that works with every LLM via MCP (Model Context Protocol)**
+> **Accessible memory layer for all AI systems**
 
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/evenscribe/enfinyte)
 [![Rust Build](https://github.com/evenscribe/enfinyte/actions/workflows/rust.yml/badge.svg)](https://github.com/evenscribe/enfinyte/actions/workflows/rust.yml)
 
-Umem is a high-performance external memory system built in Rust that provides persistent, semantic memory capabilities for LLMs and AI agents. It offers memory storage, retrieval, and search through both MCP protocol and gRPC API.
+Enfinyte is a high-performance memory persistence layer built in Rust for LLMs and AI agents. It provides semantic memory storage, retrieval, and search through MCP (Model Context Protocol) and gRPC interfaces — with AI-powered annotation that automatically classifies, tags, and scores memories.
 
 ## Key Features
 
-- **Multi-tenant Memory**: Isolated memory spaces per user with OAuth authentication
-- **Semantic Search**: BGE-M3 embeddings via Cloudflare Workers AI with Qdrant vector storage  
-- **MCP Integration**: Native Model Context Protocol support with three memory tools
-- **Document Processing**: Extract and store content from PDFs, websites, and text files
-- **Real-time Performance**: Async Rust architecture with concurrent gRPC and MCP servers
+- **Multi-tenant Memory** — Isolated memory spaces per user with OAuth authentication
+- **Semantic Search** — Vector embeddings with Qdrant or pgvector backends
+- **Dual Interfaces** — Native MCP support for LLMs + gRPC API for programmatic access
+- **AI-Powered Annotation** — Auto-classification, tagging, certainty and salience scoring
+- **Rich Memory Types** — Semantic, Episodic, Procedural, Instruction, Relational, Working, Prospective
+- **Document Ingestion** — Extract and store content from PDFs and websites
 
 ## Quick Start
 
 ### Prerequisites
+
 - Rust 1.70+
-- Qdrant vector database
-- Cloudflare Workers AI account  
-- WorkOS account for authentication
+- Qdrant or PostgreSQL with pgvector
+- Cloudflare Workers AI account (embeddings)
+- WorkOS account (MCP authentication)
 
-### Environment Setup
+### Configuration
 
-Create `.env` file:
-```env
-# Vector Database
-QDRANT_URL=http://localhost:6333
-QDRANT_KEY=your_qdrant_key
-QDRANT_COLLECTION_NAME=umem_memories
+Create config file at `~/.config/enfinyte/enfinyte.toml`:
 
-# Cloudflare Workers AI for Embeddings
-CLOUDFLARE_ACCOUNT_ID=your_account_id
-CLOUDFLARE_API_TOKEN=your_api_token
+```toml
+[vector_store.qdrant]
+url = "http://localhost:6334"
+key = ""
+collection_name = "enfinyte_memories"
+chunk_size = 512
+embedding_model_dimensions = 1024
 
-WORKOS_AUTHKIT_URL=https://your-domain.workos.com
-WORKOS_CLIENT_ID=your_workos_client_id
-WORKOS_CLIENT_SECRET=your_workos_client_secret
+[embedder.cloudflare]
+account_id = "your_account_id"
+api_token = "your_api_token"
+model = "bge-m3"
 
-# SQLite Database
-SQL_LITE_URL=sqlite://umem.db
-SQL_AUTH_TOKEN=your_sql_auth_token
+[language_model]
+model_name = "gpt-4o-mini"
+
+[language_model.provider.openai]
+api_key = "your_openai_key"
+base_url = "https://api.openai.com/v1"
+
+[mcp]
+server_addr = "0.0.0.0:3000"
+remote_url = "https://your-domain.com"
+jwks_url = "https://api.workos.com/.well-known/jwks.json"
+
+[mcp.work_os]
+client_id = "your_workos_client_id"
+client_secret = "your_workos_client_secret"
+authkit_url = "https://your-domain.workos.com"
+
+[grpc]
+server_addr = "0.0.0.0:5051"
 ```
 
-### Installation & Running
+### Run
 
 ```bash
 # Start Qdrant
-docker run -d -p 6333:6333 qdrant/qdrant
+docker run -d -p 6333:6333 -p 6334:6334 qdrant/qdrant
 
-# Build and run Umem
-cargo build --release
-cargo run --release
+# Run servers
+cargo run --bin mcp   # MCP server (port 3000)
+cargo run --bin grpc  # gRPC server (port 5051)
 ```
-
-**Servers start on:**
-- MCP Server: `http://127.0.0.1:3000` (OAuth protected)
-- gRPC Server: `[::1]:50051`
 
 ## Usage
 
-### MCP Tools (Primary Interface)
+### MCP Tools
 
-Umem provides three MCP tools for LLM integration:
-
-#### 1. `add_memory`
-Store new memory content:
-```json
-{
-  "text": "Rust is a systems programming language focused on safety and performance"
-}
-```
-
-#### 2. `get_memory` 
-Retrieve all memories for authenticated user (no parameters required).
-
-#### 3. `get_memory_by_query`
-Semantic search across memories:
-```json
-{
-  "query": "What programming language focuses on safety?"
-}
-```
+| Tool | Description |
+|------|-------------|
+| `add_memory` | Store new memory content |
+| `get_all_memory` | Retrieve all user memories |
+| `get_memory_by_id` | Get specific memory by ID |
+| `search` | Semantic search across memories |
 
 ### gRPC API
 
-For programmatic access:
-
-```rust
-use umem_proto_generated::generated::*;
-
-// Add memory
-let memory = Memory {
-    user_id: "user123".to_string(),
-    content: "Your memory content".to_string(),
-    priority: 5,
-    tags: vec!["tag1".to_string()],
-    ..Default::default()
-};
-
-// Search memories
-let query = GetMemoriesByQueryParameters {
-    user_id: "user123".to_string(),
-    query: "search query".to_string(),
-};
-```
+- `CreateMemory` / `DeleteMemory` — Manage memories
+- `GetMemory` / `ListMemories` — Retrieve memories
+- `SearchMemories` — Semantic search
 
 ## Architecture
 
 ```
-umem/
-├── src/main.rs                    # Entry point - runs MCP + gRPC servers
-├── crates/
-│   ├── umem_controller/           # Business logic orchestration
-│   ├── umem_mcp/                 # MCP server with OAuth authentication  
-│   ├── umem_grpc_server/         # gRPC API implementation
-│   ├── umem_proto_generated/     # Protocol buffer definitions
-│   ├── umem_embeddings/          # Cloudflare BGE-M3 embeddings
-│   ├── umem_vector/              # Qdrant vector database operations
-│   ├── umem_doc_parser/          # PDF/document text extraction
-│   ├── umem_web_scrapper/        # Web content scraping
-│   ├── umem_search/              # Search indexing utilities
-│   ├── umem_summarizer/          # Content summarization (planned)
-│   └── umem_utils/               # Shared utilities
-```
-
-### Memory Data Structure
-
-```protobuf
-message Memory {
-  string user_id = 1;      // Multi-tenant isolation
-  string memory_id = 2;    // Unique identifier
-  string content = 3;      // Text content
-  int32 priority = 4;      // Priority level (1-10)  
-  repeated string tags = 5; // Categorization tags
-  int64 created_at = 6;    // Creation timestamp
-  int64 updated_at = 7;    // Update timestamp
-}
-```
-
-## Docker Deployment
-
-```bash
-docker build -t umem .
-docker run -d --name umem -p 3000:3000 -p 50051:50051 --env-file .env umem
+┌─────────────────────────────────────────────────────────────┐
+│                      Entry Points                           │
+│              mcp (port 3000)    grpc (port 5051)            │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+┌──────────────────────────▼──────────────────────────────────┐
+│                      Controller                             │
+│         Memory operations, search, lifecycle mgmt           │
+└──────────────────────────┬──────────────────────────────────┘
+                           │
+        ┌──────────────────┼──────────────────┐
+        ▼                  ▼                  ▼
+┌───────────────┐  ┌───────────────┐  ┌───────────────┐
+│   AI Layer    │  │     Core      │  │ Vector Store  │
+│  Annotations  │  │ Memory Types  │  │    Qdrant     │
+│  Embeddings   │  │   Lifecycle   │  │   pgvector    │
+└───────────────┘  └───────────────┘  └───────────────┘
 ```
 
 ## Development
 
 ```bash
-# Run tests
-cargo test
-
-# Run with auto-reload
-cargo install cargo-watch
-cargo watch -x run
+cargo build         # Build
+cargo test          # Run tests
+cargo fmt           # Format code
+cargo clippy        # Lint
 ```
-
-## API Reference
-
-### gRPC Service Methods
-- `AddMemory(Memory)` - Store new memory
-- `AddMemoryBulk(MemoryBulk)` - Bulk memory storage
-- `UpdateMemory(UpdateMemoryParameters)` - Update existing memory
-- `DeleteMemory(DeleteMemoryParameters)` - Delete memory
-- `GetMemoriesByQuery(GetMemoriesByQueryParameters)` - Semantic search
-- `GetMemoriesByUserID(GetMemoriesByUserIDParameters)` - Get all user memories
-
-### MCP Tools
-- **add_memory**: Store memory content  
-- **get_memory**: Retrieve all user memories
-- **get_memory_by_query**: Semantic memory search
-
-## Performance Features
-
-- **Concurrent Architecture**: Async Rust with Tokio runtime
-- **Vector Optimized**: Qdrant HNSW indexing for fast similarity search
-- **Efficient Embeddings**: Cloudflare Workers AI for BGE-M3 generation
-- **Multi-tenant Isolation**: User-scoped memory access with OAuth
-
-## Security
-
-- **OAuth 2.0**: WorkOS-based authentication for MCP endpoints
-- **Multi-tenant**: Strict user isolation at database level  
-- **No Secrets Logging**: Secure credential handling throughout
 
 ## License
 
-MIT License - see LICENSE file for details.
+Apache License 2.0 — see [LICENSE](LICENSE) for details.
 
 ---
 
-**Umem** - Persistent external memory for the AI era, built with Rust.
+**Enfinyte** — Memory for the AI era.
