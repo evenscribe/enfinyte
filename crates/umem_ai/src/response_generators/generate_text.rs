@@ -1,7 +1,7 @@
 use crate::response_generators::messages::Message;
 use crate::utils;
 use crate::utils::is_retryable_error;
-use crate::AIProvider;
+use crate::LanguageModel;
 use crate::ResponseGeneratorError;
 use backon::ExponentialBuilder;
 use backon::Retryable;
@@ -19,8 +19,10 @@ pub async fn generate_text(
     let total_delay = per_request_timeout.mul_f32(max_retries as f32 / 2.0);
 
     let generation = || {
-        let provider = Arc::clone(&request.provider);
+        let model = Arc::clone(&request.model);
+        let provider = Arc::clone(&model.provider);
         let request = request.clone();
+
         async move {
             tokio::time::timeout(per_request_timeout, provider.do_generate_text(request))
                 .await
@@ -50,8 +52,7 @@ pub struct GenerateTextResponse {
 
 #[derive(Clone)]
 pub struct GenerateTextRequest {
-    pub model: String,
-    pub provider: Arc<AIProvider>,
+    pub model: Arc<LanguageModel>,
     pub messages: Vec<Message>,
     pub max_output_tokens: Option<usize>,
     pub temperature: Option<f32>,
@@ -80,8 +81,7 @@ pub enum GenerateTextRequestBuilderError {
 }
 
 pub struct GenerateTextRequestBuilder {
-    pub model: Option<String>,
-    pub provider: Option<Arc<AIProvider>>,
+    pub model: Option<Arc<LanguageModel>>,
     pub system: Option<String>,
     pub prompt: Option<String>,
     pub messages: Vec<Message>,
@@ -100,7 +100,6 @@ impl GenerateTextRequestBuilder {
     pub fn new() -> Self {
         GenerateTextRequestBuilder {
             model: None,
-            provider: None,
             system: None,
             prompt: None,
             max_output_tokens: None,
@@ -116,13 +115,8 @@ impl GenerateTextRequestBuilder {
         }
     }
 
-    pub fn model(mut self, model: impl Into<String>) -> Self {
-        self.model = Some(model.into());
-        self
-    }
-
-    pub fn provider(mut self, provider: Arc<AIProvider>) -> Self {
-        self.provider = Some(provider);
+    pub fn model(mut self, model: Arc<LanguageModel>) -> Self {
+        self.model = Some(model);
         self
     }
 
@@ -214,9 +208,6 @@ impl GenerateTextRequestBuilder {
                 .model
                 .ok_or(GenerateTextRequestBuilderError::MissingModel)?,
             messages: self.messages,
-            provider: self
-                .provider
-                .ok_or(GenerateTextRequestBuilderError::MissingProvider)?,
             max_output_tokens: self.max_output_tokens,
             top_p: self.top_p,
             top_k: self.top_k,

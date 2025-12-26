@@ -70,7 +70,7 @@ impl OpenAIProvider {
         let normalized_user_messages = self.normalize_user_messages(&request.messages);
 
         serde_json::json!({
-            "model": request.model,
+            "model": request.model.model_name,
             "instructions":system,
             "input": [serde_json::json!({
                 "type": "message",
@@ -408,19 +408,20 @@ impl Default for OpenAIProviderBuilder {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use crate::{
         response_generators::{
             generate_object::{generate_object, GenerateObjectRequestBuilder},
             generate_text, GenerateTextRequestBuilder,
         },
-        LLMProvider, LLM,
+        AIProvider, LanguageModel,
     };
     use std::sync::Arc;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_generate_object() {
-        let provider = Arc::new(LLMProvider::from(
+        let provider = Arc::new(AIProvider::from(
             OpenAIProviderBuilder::new()
                 .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
@@ -434,13 +435,13 @@ mod tests {
             traditions: String,
         }
 
-        let llm = Arc::new(LLM {
+        let model = Arc::new(LanguageModel {
             provider,
             model_name: "allenai/olmo-3.1-32b-think:free".to_string(),
         });
 
         let request = GenerateObjectRequestBuilder::<Holiday>::new()
-            .model(llm)
+            .model(model)
             .system("You are a helpful assistant.".to_string())
             .prompt("Invent a new holiday and describe its traditions.".to_string())
             .max_output_tokens(2000)
@@ -455,7 +456,7 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_generate_text() {
-        let provider = Arc::new(LLMProvider::from(
+        let provider = Arc::new(AIProvider::from(
             OpenAIProviderBuilder::new()
                 .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
@@ -463,11 +464,15 @@ mod tests {
                 .unwrap(),
         ));
 
+        let model = Arc::new(LanguageModel {
+            provider,
+            model_name: "arcee-ai/trinity-mini:free".to_string(),
+        });
+
         let request = GenerateTextRequestBuilder::new()
-            .model("arcee-ai/trinity-mini:free".to_string())
+            .model(model)
             .system("You are a helpful assistant.".to_string())
             .prompt("Invent a new holiday and describe its traditions.".to_string())
-            .provider(Arc::clone(&provider))
             .max_output_tokens(10000)
             .temperature(0.7)
             .build()
