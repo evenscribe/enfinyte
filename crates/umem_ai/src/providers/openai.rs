@@ -13,13 +13,25 @@ use reqwest::header::HeaderMap;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::{Map, Value};
-use thiserror::Error;
+use typed_builder::TypedBuilder;
 
+#[derive(TypedBuilder, Debug)]
 pub struct OpenAIProvider {
+    #[builder(setter(transform = |value: impl Into<String>| value.into()))]
     pub api_key: String,
+
+    #[builder(default = "https://api.openai.com/v1".into(), setter(transform = |value: impl Into<String>| value.into()))]
     pub base_url: String,
+
+    #[builder(default, setter(transform = |value: Vec<(String, String)>| 
+           utils::build_header_map(value.as_slice()).unwrap_or_default()
+    ))]
     pub default_headers: HeaderMap,
+
+    #[builder(default)]
     pub organization: Option<String>,
+
+    #[builder(default)]
     pub project: Option<String>,
 }
 
@@ -330,82 +342,6 @@ enum MessageContent {
     },
 }
 
-pub struct OpenAIProviderBuilder {
-    pub api_key: Option<String>,
-    pub base_url: Option<String>,
-    pub default_headers: Option<Vec<(String, String)>>,
-    pub organization: Option<String>,
-    pub project: Option<String>,
-}
-
-#[derive(Error, Debug)]
-pub enum OpenAIProviderBuilderError {
-    #[error("api key must be passed")]
-    MissingApiKey,
-}
-
-impl OpenAIProviderBuilder {
-    pub fn new() -> Self {
-        OpenAIProviderBuilder {
-            api_key: None,
-            base_url: None,
-            default_headers: None,
-            organization: None,
-            project: None,
-        }
-    }
-
-    pub fn api_key(mut self, api_key: impl Into<String>) -> Self {
-        self.api_key = Some(api_key.into());
-        self
-    }
-
-    pub fn base_url(mut self, base_url: impl Into<String>) -> Self {
-        self.base_url = Some(base_url.into());
-        self
-    }
-
-    pub fn default_headers(mut self, default_headers: Vec<(String, String)>) -> Self {
-        self.default_headers = Some(default_headers);
-        self
-    }
-
-    pub fn organization(mut self, organization: String) -> Self {
-        self.organization = Some(organization);
-        self
-    }
-
-    pub fn project(mut self, project: String) -> Self {
-        self.project = Some(project);
-        self
-    }
-
-    pub fn build(self) -> Result<OpenAIProvider, OpenAIProviderBuilderError> {
-        if self.api_key.is_none() {
-            return Err(OpenAIProviderBuilderError::MissingApiKey);
-        }
-
-        Ok(OpenAIProvider {
-            api_key: self.api_key.unwrap(),
-            base_url: self
-                .base_url
-                .unwrap_or("https://api.openai.com/v1".to_string()),
-            default_headers: utils::build_header_map(
-                self.default_headers.unwrap_or(vec![]).as_slice(),
-            )
-            .unwrap_or_default(),
-            organization: self.organization,
-            project: self.project,
-        })
-    }
-}
-
-impl Default for OpenAIProviderBuilder {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -422,11 +358,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_generate_object() {
         let provider = Arc::new(AIProvider::from(
-            OpenAIProviderBuilder::new()
+            OpenAIProvider::builder()
                 .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
                 .build()
-                .unwrap(),
         ));
 
         #[derive(Clone, JsonSchema, Serialize, Deserialize, Debug)]
@@ -457,11 +392,10 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn test_generate_text() {
         let provider = Arc::new(AIProvider::from(
-            OpenAIProviderBuilder::new()
+            OpenAIProvider::builder()
                 .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
                 .build()
-                .unwrap(),
         ));
 
         let model = Arc::new(LanguageModel {

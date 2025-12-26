@@ -52,23 +52,16 @@ pub enum AIProvider {
 lazy_static! {
     static ref LANGUAGE_MODEL: Arc<LanguageModel> = match CONFIG.language_model.provider.clone() {
         umem_config::Provider::OpenAI(open_ai) => {
-            let mut builder = OpenAIProviderBuilder::new()
+            let openai_provider = OpenAIProvider::builder()
                 .api_key(open_ai.api_key)
-                .base_url(open_ai.base_url);
+                .base_url(open_ai.base_url)
+                .default_headers(open_ai.default_headers.unwrap_or_default())
+                .project(open_ai.project)
+                .organization(open_ai.organization)
+                .build();
 
-            if let Some(default_headers) = open_ai.default_headers {
-                builder = builder.default_headers(default_headers);
-            }
+            let provider = Arc::new(AIProvider::from(openai_provider));
 
-            if let Some(project) = open_ai.project {
-                builder = builder.project(project);
-            }
-
-            if let Some(organization) = open_ai.organization {
-                builder = builder.organization(organization);
-            }
-
-            let provider = Arc::new(AIProvider::from(builder.build().unwrap()));
             Arc::new(LanguageModel {
                 provider,
                 model_name: CONFIG.language_model.model_name.clone(),
