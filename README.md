@@ -2,6 +2,8 @@
 
 > **Semantic memory layer that works with every LLM via MCP (Model Context Protocol)**
 
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/evenscribe/enfinyte)
+
 Umem is a high-performance external memory system built in Rust that provides persistent, semantic memory capabilities for LLMs and AI agents. It offers memory storage, retrieval, and search through both MCP protocol and gRPC API.
 
 ## Key Features
