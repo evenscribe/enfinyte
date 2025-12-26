@@ -18,4 +18,5 @@ serde_json.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+typed-builder.workspace = true
 umem_config = {workspace = true}
