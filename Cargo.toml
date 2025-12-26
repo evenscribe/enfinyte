@@ -9,6 +9,7 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 umem_core = {path = "crates/umem_core"}
+umem_refine = {path = "crates/umem_refine"}
 umem_vector_store = {path = "crates/umem_vector_store"}
 umem_config = {path = "crates/umem_config"}
 umem_embeddings = {path = "crates/umem_embeddings"}
