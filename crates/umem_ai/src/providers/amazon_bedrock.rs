@@ -10,17 +10,15 @@ use async_trait::async_trait;
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_bedrockruntime::{
     operation::converse::builders::ConverseFluentBuilder,
-    types::{ContentBlock, ImageBlock, Message},
+    types::{ContentBlock, ImageBlock, InferenceConfiguration, Message},
 };
-use reqwest::header::HeaderMap;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Serialize};
-use std::env;
+use std::sync::Arc;
 use thiserror::Error;
 
 pub struct AmazonBedrockProvider {
-    client: aws_sdk_bedrockruntime::Client,
-    default_headers: HeaderMap,
+    client: Arc<aws_sdk_bedrockruntime::Client>,
 }
 
 #[async_trait]
@@ -34,6 +32,25 @@ impl GeneratesText for AmazonBedrockProvider {
             .map_err(ResponseGeneratorError::Transient)?;
 
         let converse_response = converse_request
+            .set_inference_config(Some(
+                InferenceConfiguration::builder()
+                    .temperature(request.temperature.unwrap_or(0.0))
+                    .top_p(request.top_p.unwrap_or(1.0))
+                    .max_tokens(request.max_output_tokens.unwrap_or(0_usize) as i32)
+                    .build(),
+            ))
+            .additional_model_request_fields(aws_smithy_types::Document::Object(
+                request
+                    .headers
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            key.as_str().to_string(),
+                            aws_smithy_types::Document::String(value.to_str().unwrap().to_string()),
+                        )
+                    })
+                    .collect(),
+            ))
             .send()
             .await
             .map_err(|e| ResponseGeneratorError::BedrockConverseError(e.to_string()))?;
@@ -79,6 +96,25 @@ impl GeneratesObject for AmazonBedrockProvider {
             .map_err(ResponseGeneratorError::Transient)?;
 
         let converse_response = converse_request
+            .set_inference_config(Some(
+                InferenceConfiguration::builder()
+                    .temperature(request.temperature.unwrap_or(0.0))
+                    .top_p(request.top_p.unwrap_or(1.0))
+                    .max_tokens(request.max_output_tokens.unwrap_or(0_usize) as i32)
+                    .build(),
+            ))
+            .additional_model_request_fields(aws_smithy_types::Document::Object(
+                request
+                    .headers
+                    .iter()
+                    .map(|(key, value)| {
+                        (
+                            key.as_str().to_string(),
+                            aws_smithy_types::Document::String(value.to_str().unwrap().to_string()),
+                        )
+                    })
+                    .collect(),
+            ))
             .send()
             .await
             .map_err(|e| ResponseGeneratorError::BedrockConverseError(e.to_string()))?;
@@ -243,7 +279,7 @@ pub struct AmazonBedrockProviderBuilder {
     access_key_id: Option<String>,
     secret_access_key: Option<String>,
     region: Option<Region>,
-    default_headers: Vec<(String, String)>,
+    provider_name: Option<String>,
 }
 
 #[derive(Error, Debug)]
@@ -278,42 +314,33 @@ impl AmazonBedrockProviderBuilder {
         self
     }
 
-    pub fn default_headers(mut self, headers: Vec<(String, String)>) -> Self {
-        self.default_headers = headers;
+    pub fn provider_name(mut self, provider_name: impl Into<String>) -> Self {
+        self.provider_name = Some(provider_name.into());
         self
     }
 
     pub async fn build(self) -> Result<AmazonBedrockProvider, AmazonBedrockProviderBuilderError> {
-        if self.access_key_id.is_none() {
-            return Err(AmazonBedrockProviderBuilderError::MissingAccessKeyId);
-        }
-
-        if self.secret_access_key.is_none() {
-            return Err(AmazonBedrockProviderBuilderError::MissingSecretAccessKey);
-        }
-
-        if self.region.is_none() {
-            return Err(AmazonBedrockProviderBuilderError::MissingRegion);
-        }
-
-        unsafe {
-            env::set_var("AWS_ACCESS_KEY_ID", self.access_key_id.clone().unwrap());
-            env::set_var(
-                "AWS_SECRET_ACCESS_KEY",
-                self.secret_access_key.clone().unwrap(),
-            );
-        }
-
         let sdk_config = aws_config::defaults(BehaviorVersion::latest())
             .region(self.region)
+            .credentials_provider(
+                aws_sdk_bedrockruntime::config::Credentials::builder()
+                    .access_key_id(
+                        self.access_key_id
+                            .clone()
+                            .ok_or(AmazonBedrockProviderBuilderError::MissingAccessKeyId)?,
+                    )
+                    .secret_access_key(
+                        self.secret_access_key
+                            .ok_or(AmazonBedrockProviderBuilderError::MissingSecretAccessKey)?,
+                    )
+                    .provider_name("umem-ai-bedrock-provider")
+                    .build(),
+            )
             .load()
             .await;
 
-        let default_headers = utils::build_header_map(self.default_headers.as_slice())?;
-
         Ok(AmazonBedrockProvider {
-            client: aws_sdk_bedrockruntime::Client::new(&sdk_config),
-            default_headers,
+            client: Arc::new(aws_sdk_bedrockruntime::Client::new(&sdk_config)),
         })
     }
 }

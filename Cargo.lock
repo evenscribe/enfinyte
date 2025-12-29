@@ -4867,6 +4867,7 @@ dependencies = [
  "async-trait",
  "aws-config",
  "aws-sdk-bedrockruntime",
+ "aws-smithy-types",
  "backon",
  "base64",
  "lazy_static",
