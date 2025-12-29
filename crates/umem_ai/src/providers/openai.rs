@@ -42,8 +42,8 @@ impl OpenAIProvider {
         &self,
         request: &GenerateObjectRequest<T>,
     ) -> String {
-        let system = self.normalize_system_message(&request.messages);
-        let normalized_user_messages = self.normalize_user_messages(&request.messages);
+        let system = Self::normalize_system_message(&request.messages);
+        let normalized_user_messages = Self::normalize_user_messages(&request.messages);
         let schema = request.output_schema.clone();
         let name = std::any::type_name::<T>()
             .split("::")
@@ -78,8 +78,8 @@ impl OpenAIProvider {
     }
 
     pub fn normalize_generate_text_request(&self, request: &GenerateTextRequest) -> String {
-        let system = self.normalize_system_message(&request.messages);
-        let normalized_user_messages = self.normalize_user_messages(&request.messages);
+        let system = Self::normalize_system_message(&request.messages);
+        let normalized_user_messages = Self::normalize_user_messages(&request.messages);
 
         serde_json::json!({
             "model": request.model.model_name,
@@ -102,7 +102,7 @@ impl OpenAIProvider {
         .to_string()
     }
 
-    fn normalize_system_message(&self, messages: &[Message]) -> String {
+    pub(crate) fn normalize_system_message(messages: &[Message]) -> String {
         messages
             .iter()
             .find_map(|msg| match msg {
@@ -113,7 +113,7 @@ impl OpenAIProvider {
             .into()
     }
 
-    fn normalize_user_messages(&self, messages: &[Message]) -> Vec<Value> {
+    pub(crate) fn normalize_user_messages(messages: &[Message]) -> Vec<Value> {
         let user_messages: Vec<&UserModelMessage> = messages
             .iter()
             .filter_map(|msg| match msg {
@@ -265,7 +265,7 @@ impl GeneratesObject for OpenAIProvider {
             .unwrap_or_default();
 
         let output: T =
-            serde_json::from_str(&output_text).map_err(ResponseGeneratorError::Serialization)?;
+            serde_json::from_str(&output_text).map_err(ResponseGeneratorError::Deserialization)?;
 
         Ok(GenerateObjectResponse { output })
     }

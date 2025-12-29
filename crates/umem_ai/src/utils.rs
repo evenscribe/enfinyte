@@ -15,7 +15,7 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
                     s.is_server_error() || s == reqwest::StatusCode::TOO_MANY_REQUESTS
                 })
         }
-        ResponseGeneratorError::Serialization(error) => {
+        ResponseGeneratorError::Deserialization(error) => {
             tracing::warn!(
                 "Serialization error, AI Might have built a bad JSON output: {}",
                 error
@@ -35,6 +35,21 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
                 e
             );
             false
+        }
+        ResponseGeneratorError::InvalidProviderResponse(e) => {
+            tracing::error!("Invalid response from AI provider: {}", e);
+            true
+        }
+        ResponseGeneratorError::EmptyProviderResponse => {
+            tracing::error!("Empty response from AI provider");
+            true
+        }
+        ResponseGeneratorError::BedrockConverseError(sdk_error) => {
+            tracing::error!(
+                "AWS Bedrock Converse SDK error occurred when communicating with AI provider: {}",
+                sdk_error
+            );
+            true
         }
     }
 }

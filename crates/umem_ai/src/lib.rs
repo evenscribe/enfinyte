@@ -90,6 +90,7 @@ impl AIProvider {
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError> {
         match self {
             AIProvider::OpenAI(provider) => provider.generate_object(request),
+            AIProvider::AmazonBedrock(provider) => provider.generate_object(request),
             _ => unimplemented!(),
         }
         .await
