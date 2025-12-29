@@ -114,7 +114,7 @@ impl GeneratesObject for AmazonBedrockProvider {
 }
 
 impl AmazonBedrockProvider {
-    fn normalizer_generate_object_request<
+    fn normalize_generate_object_request<
         T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned,
     >(
         &self,
