@@ -12,6 +12,7 @@ use aws_sdk_bedrockruntime::{
     operation::converse::builders::ConverseFluentBuilder,
     types::{ContentBlock, ImageBlock, InferenceConfiguration, Message},
 };
+use base64::Engine;
 use schemars::JsonSchema;
 use serde::{de::DeserializeOwned, Serialize};
 use std::sync::Arc;
@@ -233,20 +234,26 @@ impl AmazonBedrockProvider {
                                 FilePart::Url(_, _) => {
                                     unimplemented!("AWS doesn't support URL images yet");
                                 }
-                                FilePart::Base64(b64_string, media_type) => ImageBlock::builder()
-                                    .source(aws_sdk_bedrockruntime::types::ImageSource::Bytes(
-                                        b64_string.as_bytes().into(),
-                                    ))
-                                    .format(
-                                        media_type
-                                            .clone()
-                                            .unwrap_or(mime::IMAGE_PNG)
-                                            .to_string()
-                                            .as_str()
-                                            .into(),
-                                    )
-                                    .build()
-                                    .unwrap(),
+                                FilePart::Base64(b64_string, media_type) => {
+                                    let decoded = base64::engine::general_purpose::STANDARD
+                                        .decode(b64_string)
+                                        .expect("not a valid base64 string");
+
+                                    ImageBlock::builder()
+                                        .source(aws_sdk_bedrockruntime::types::ImageSource::Bytes(
+                                            decoded.as_slice().into(),
+                                        ))
+                                        .format(
+                                            media_type
+                                                .clone()
+                                                .unwrap_or(mime::IMAGE_PNG)
+                                                .to_string()
+                                                .as_str()
+                                                .into(),
+                                        )
+                                        .build()
+                                        .expect("failed to build image block")
+                                }
                                 FilePart::Buffer(items, media_type) => ImageBlock::builder()
                                     .source(aws_sdk_bedrockruntime::types::ImageSource::Bytes(
                                         items.as_slice().into(),
@@ -260,11 +267,13 @@ impl AmazonBedrockProvider {
                                             .into(),
                                     )
                                     .build()
-                                    .unwrap(),
+                                    .expect("failed to build image block"),
                             };
                             ContentBlock::Image(image_block)
                         }
-                        crate::messages::UserMessagePart::File(_) => todo!(),
+                        crate::messages::UserMessagePart::File(_) => {
+                            unimplemented!("file handling not yet supported for Bedrock")
+                        }
                     })
                     .collect(),
             })
