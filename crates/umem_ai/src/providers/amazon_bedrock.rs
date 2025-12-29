@@ -75,7 +75,7 @@ impl GeneratesObject for AmazonBedrockProvider {
         request: GenerateObjectRequest<T>,
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError> {
         let converse_request = self
-            .normalizer_generate_object_request(&request)
+            .normalize_generate_object_request(&request)
             .map_err(ResponseGeneratorError::Transient)?;
 
         let converse_response = converse_request
@@ -228,7 +228,7 @@ impl AmazonBedrockProvider {
                             };
                             ContentBlock::Image(image_block)
                         }
-                        crate::messages::UserMessagePart::File(file_part) => todo!(),
+                        crate::messages::UserMessagePart::File(_) => todo!(),
                     })
                     .collect(),
             })
