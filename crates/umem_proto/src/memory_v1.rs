@@ -17,10 +17,10 @@ pub struct MemoryContent {
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct MemorySignals {
-    #[prost(float, tag = "1")]
-    pub certainty: f32,
-    #[prost(float, tag = "2")]
-    pub salience: f32,
+    #[prost(uint32, tag = "1")]
+    pub certainty: u32,
+    #[prost(uint32, tag = "2")]
+    pub salience: u32,
 }
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct TemporalMetadata {
@@ -125,20 +125,6 @@ pub struct CreateMemoryRequest {
     pub raw_content: ::prost::alloc::string::String,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct UpdateMemoryRequest {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-    #[prost(message, optional, tag = "2")]
-    pub content: ::core::option::Option<MemoryContent>,
-    #[prost(message, optional, tag = "3")]
-    pub signals: ::core::option::Option<MemorySignals>,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
-pub struct ArchiveMemoryRequest {
-    #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
-}
-#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct DeleteMemoryRequest {
     #[prost(string, tag = "1")]
     pub id: ::prost::alloc::string::String,
@@ -152,10 +138,6 @@ pub struct GetMemoryRequest {
 pub struct ListMemoriesRequest {
     #[prost(message, optional, tag = "1")]
     pub context: ::core::option::Option<ContextFilter>,
-    #[prost(uint32, tag = "2")]
-    pub limit: u32,
-    #[prost(bool, tag = "3")]
-    pub include_archived: bool,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SearchMemoriesRequest {
@@ -163,18 +145,6 @@ pub struct SearchMemoriesRequest {
     pub query: ::prost::alloc::string::String,
     #[prost(message, optional, tag = "2")]
     pub context: ::core::option::Option<ContextFilter>,
-    #[prost(uint32, tag = "3")]
-    pub limit: u32,
-    #[prost(bool, tag = "4")]
-    pub include_archived: bool,
-    #[prost(enumeration = "MemoryKind", repeated, tag = "5")]
-    pub kinds: ::prost::alloc::vec::Vec<i32>,
-    #[prost(string, repeated, tag = "6")]
-    pub tags: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
-    #[prost(message, optional, tag = "7")]
-    pub temporal: ::core::option::Option<TemporalFilter>,
-    #[prost(message, optional, tag = "8")]
-    pub signals: ::core::option::Option<SignalFilter>,
 }
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct MemoryResponse {
@@ -295,10 +265,10 @@ pub mod memory_service_client {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
-    use tonic::codegen::*;
     use tonic::codegen::http::Uri;
+    use tonic::codegen::*;
     #[derive(Debug, Clone)]
     pub struct MemoryServiceClient<T> {
         inner: tonic::client::Grpc<T>,
@@ -342,9 +312,8 @@ pub mod memory_service_client {
                     <T as tonic::client::GrpcService<tonic::body::BoxBody>>::ResponseBody,
                 >,
             >,
-            <T as tonic::codegen::Service<
-                http::Request<tonic::body::BoxBody>,
-            >>::Error: Into<StdError> + std::marker::Send + std::marker::Sync,
+            <T as tonic::codegen::Service<http::Request<tonic::body::BoxBody>>>::Error:
+                Into<StdError> + std::marker::Send + std::marker::Sync,
         {
             MemoryServiceClient::new(InterceptedService::new(inner, interceptor))
         }
@@ -383,81 +352,27 @@ pub mod memory_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::CreateMemoryRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/CreateMemory",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/memory_v1.MemoryService/CreateMemory");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("memory_v1.MemoryService", "CreateMemory"));
-            self.inner.unary(req, path, codec).await
-        }
-        pub async fn update_memory(
-            &mut self,
-            request: impl tonic::IntoRequest<super::UpdateMemoryRequest>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/UpdateMemory",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("memory_v1.MemoryService", "UpdateMemory"));
-            self.inner.unary(req, path, codec).await
-        }
-        pub async fn archive_memory(
-            &mut self,
-            request: impl tonic::IntoRequest<super::ArchiveMemoryRequest>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
-            let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/ArchiveMemory",
-            );
-            let mut req = request.into_request();
-            req.extensions_mut()
-                .insert(GrpcMethod::new("memory_v1.MemoryService", "ArchiveMemory"));
             self.inner.unary(req, path, codec).await
         }
         pub async fn delete_memory(
             &mut self,
             request: impl tonic::IntoRequest<super::DeleteMemoryRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/DeleteMemory",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/memory_v1.MemoryService/DeleteMemory");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("memory_v1.MemoryService", "DeleteMemory"));
@@ -467,18 +382,11 @@ pub mod memory_service_client {
             &mut self,
             request: impl tonic::IntoRequest<super::GetMemoryRequest>,
         ) -> std::result::Result<tonic::Response<super::MemoryResponse>, tonic::Status> {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/GetMemory",
-            );
+            let path = http::uri::PathAndQuery::from_static("/memory_v1.MemoryService/GetMemory");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("memory_v1.MemoryService", "GetMemory"));
@@ -487,22 +395,14 @@ pub mod memory_service_client {
         pub async fn list_memories(
             &mut self,
             request: impl tonic::IntoRequest<super::ListMemoriesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MemoryListResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MemoryListResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/ListMemories",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/memory_v1.MemoryService/ListMemories");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("memory_v1.MemoryService", "ListMemories"));
@@ -511,22 +411,14 @@ pub mod memory_service_client {
         pub async fn search_memories(
             &mut self,
             request: impl tonic::IntoRequest<super::SearchMemoriesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MemoryListResponse>,
-            tonic::Status,
-        > {
-            self.inner
-                .ready()
-                .await
-                .map_err(|e| {
-                    tonic::Status::unknown(
-                        format!("Service was not ready: {}", e.into()),
-                    )
-                })?;
+        ) -> std::result::Result<tonic::Response<super::MemoryListResponse>, tonic::Status>
+        {
+            self.inner.ready().await.map_err(|e| {
+                tonic::Status::unknown(format!("Service was not ready: {}", e.into()))
+            })?;
             let codec = tonic::codec::ProstCodec::default();
-            let path = http::uri::PathAndQuery::from_static(
-                "/memory_v1.MemoryService/SearchMemories",
-            );
+            let path =
+                http::uri::PathAndQuery::from_static("/memory_v1.MemoryService/SearchMemories");
             let mut req = request.into_request();
             req.extensions_mut()
                 .insert(GrpcMethod::new("memory_v1.MemoryService", "SearchMemories"));
@@ -541,7 +433,7 @@ pub mod memory_service_server {
         dead_code,
         missing_docs,
         clippy::wildcard_imports,
-        clippy::let_unit_value,
+        clippy::let_unit_value
     )]
     use tonic::codegen::*;
     /// Generated trait containing gRPC methods that should be implemented for use with MemoryServiceServer.
@@ -550,14 +442,6 @@ pub mod memory_service_server {
         async fn create_memory(
             &self,
             request: tonic::Request<super::CreateMemoryRequest>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
-        async fn update_memory(
-            &self,
-            request: tonic::Request<super::UpdateMemoryRequest>,
-        ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
-        async fn archive_memory(
-            &self,
-            request: tonic::Request<super::ArchiveMemoryRequest>,
         ) -> std::result::Result<tonic::Response<()>, tonic::Status>;
         async fn delete_memory(
             &self,
@@ -570,17 +454,11 @@ pub mod memory_service_server {
         async fn list_memories(
             &self,
             request: tonic::Request<super::ListMemoriesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MemoryListResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MemoryListResponse>, tonic::Status>;
         async fn search_memories(
             &self,
             request: tonic::Request<super::SearchMemoriesRequest>,
-        ) -> std::result::Result<
-            tonic::Response<super::MemoryListResponse>,
-            tonic::Status,
-        >;
+        ) -> std::result::Result<tonic::Response<super::MemoryListResponse>, tonic::Status>;
     }
     #[derive(Debug)]
     pub struct MemoryServiceServer<T> {
@@ -603,10 +481,7 @@ pub mod memory_service_server {
                 max_encoding_message_size: None,
             }
         }
-        pub fn with_interceptor<F>(
-            inner: T,
-            interceptor: F,
-        ) -> InterceptedService<Self, F>
+        pub fn with_interceptor<F>(inner: T, interceptor: F) -> InterceptedService<Self, F>
         where
             F: tonic::service::Interceptor,
         {
@@ -661,15 +536,11 @@ pub mod memory_service_server {
                 "/memory_v1.MemoryService/CreateMemory" => {
                     #[allow(non_camel_case_types)]
                     struct CreateMemorySvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::CreateMemoryRequest>
-                    for CreateMemorySvc<T> {
+                    impl<T: MemoryService> tonic::server::UnaryService<super::CreateMemoryRequest>
+                        for CreateMemorySvc<T>
+                    {
                         type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::CreateMemoryRequest>,
@@ -703,108 +574,14 @@ pub mod memory_service_server {
                     };
                     Box::pin(fut)
                 }
-                "/memory_v1.MemoryService/UpdateMemory" => {
-                    #[allow(non_camel_case_types)]
-                    struct UpdateMemorySvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::UpdateMemoryRequest>
-                    for UpdateMemorySvc<T> {
-                        type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::UpdateMemoryRequest>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as MemoryService>::update_memory(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = UpdateMemorySvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
-                "/memory_v1.MemoryService/ArchiveMemory" => {
-                    #[allow(non_camel_case_types)]
-                    struct ArchiveMemorySvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::ArchiveMemoryRequest>
-                    for ArchiveMemorySvc<T> {
-                        type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
-                        fn call(
-                            &mut self,
-                            request: tonic::Request<super::ArchiveMemoryRequest>,
-                        ) -> Self::Future {
-                            let inner = Arc::clone(&self.0);
-                            let fut = async move {
-                                <T as MemoryService>::archive_memory(&inner, request).await
-                            };
-                            Box::pin(fut)
-                        }
-                    }
-                    let accept_compression_encodings = self.accept_compression_encodings;
-                    let send_compression_encodings = self.send_compression_encodings;
-                    let max_decoding_message_size = self.max_decoding_message_size;
-                    let max_encoding_message_size = self.max_encoding_message_size;
-                    let inner = self.inner.clone();
-                    let fut = async move {
-                        let method = ArchiveMemorySvc(inner);
-                        let codec = tonic::codec::ProstCodec::default();
-                        let mut grpc = tonic::server::Grpc::new(codec)
-                            .apply_compression_config(
-                                accept_compression_encodings,
-                                send_compression_encodings,
-                            )
-                            .apply_max_message_size_config(
-                                max_decoding_message_size,
-                                max_encoding_message_size,
-                            );
-                        let res = grpc.unary(method, req).await;
-                        Ok(res)
-                    };
-                    Box::pin(fut)
-                }
                 "/memory_v1.MemoryService/DeleteMemory" => {
                     #[allow(non_camel_case_types)]
                     struct DeleteMemorySvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::DeleteMemoryRequest>
-                    for DeleteMemorySvc<T> {
+                    impl<T: MemoryService> tonic::server::UnaryService<super::DeleteMemoryRequest>
+                        for DeleteMemorySvc<T>
+                    {
                         type Response = ();
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::DeleteMemoryRequest>,
@@ -841,15 +618,9 @@ pub mod memory_service_server {
                 "/memory_v1.MemoryService/GetMemory" => {
                     #[allow(non_camel_case_types)]
                     struct GetMemorySvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::GetMemoryRequest>
-                    for GetMemorySvc<T> {
+                    impl<T: MemoryService> tonic::server::UnaryService<super::GetMemoryRequest> for GetMemorySvc<T> {
                         type Response = super::MemoryResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::GetMemoryRequest>,
@@ -886,15 +657,11 @@ pub mod memory_service_server {
                 "/memory_v1.MemoryService/ListMemories" => {
                     #[allow(non_camel_case_types)]
                     struct ListMemoriesSvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::ListMemoriesRequest>
-                    for ListMemoriesSvc<T> {
+                    impl<T: MemoryService> tonic::server::UnaryService<super::ListMemoriesRequest>
+                        for ListMemoriesSvc<T>
+                    {
                         type Response = super::MemoryListResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::ListMemoriesRequest>,
@@ -931,15 +698,11 @@ pub mod memory_service_server {
                 "/memory_v1.MemoryService/SearchMemories" => {
                     #[allow(non_camel_case_types)]
                     struct SearchMemoriesSvc<T: MemoryService>(pub Arc<T>);
-                    impl<
-                        T: MemoryService,
-                    > tonic::server::UnaryService<super::SearchMemoriesRequest>
-                    for SearchMemoriesSvc<T> {
+                    impl<T: MemoryService> tonic::server::UnaryService<super::SearchMemoriesRequest>
+                        for SearchMemoriesSvc<T>
+                    {
                         type Response = super::MemoryListResponse;
-                        type Future = BoxFuture<
-                            tonic::Response<Self::Response>,
-                            tonic::Status,
-                        >;
+                        type Future = BoxFuture<tonic::Response<Self::Response>, tonic::Status>;
                         fn call(
                             &mut self,
                             request: tonic::Request<super::SearchMemoriesRequest>,
@@ -973,23 +736,19 @@ pub mod memory_service_server {
                     };
                     Box::pin(fut)
                 }
-                _ => {
-                    Box::pin(async move {
-                        let mut response = http::Response::new(empty_body());
-                        let headers = response.headers_mut();
-                        headers
-                            .insert(
-                                tonic::Status::GRPC_STATUS,
-                                (tonic::Code::Unimplemented as i32).into(),
-                            );
-                        headers
-                            .insert(
-                                http::header::CONTENT_TYPE,
-                                tonic::metadata::GRPC_CONTENT_TYPE,
-                            );
-                        Ok(response)
-                    })
-                }
+                _ => Box::pin(async move {
+                    let mut response = http::Response::new(empty_body());
+                    let headers = response.headers_mut();
+                    headers.insert(
+                        tonic::Status::GRPC_STATUS,
+                        (tonic::Code::Unimplemented as i32).into(),
+                    );
+                    headers.insert(
+                        http::header::CONTENT_TYPE,
+                        tonic::metadata::GRPC_CONTENT_TYPE,
+                    );
+                    Ok(response)
+                }),
             }
         }
     }

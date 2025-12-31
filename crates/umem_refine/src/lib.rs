@@ -6,11 +6,9 @@ use thiserror::Error;
 
 mod tantivy_tokenizer;
 
-use tantivy_tokenizer::{SimpleTokenizer, TextAnalyzer, Token};
+use tantivy_tokenizer::{LowerCaser, SimpleTokenizer, TextAnalyzer, Token};
 
-use crate::tantivy_tokenizer::LowerCaser;
-
-pub struct Refine;
+pub struct Segmenter;
 
 #[derive(Error, Debug)]
 pub enum RefineError {
@@ -18,11 +16,10 @@ pub enum RefineError {
     StopWordsError,
 }
 
-impl Refine {
+impl Segmenter {
     pub fn process(query: impl Into<String>) -> Result<Vec<String>, RefineError> {
         let stemmer = Stemmer::create(Algorithm::English);
-        let stopwords = NLTK::stopwords(Language::English)
-            .unwrap_or_else(|| panic!("{}", RefineError::StopWordsError.to_string()));
+        let stopwords = NLTK::stopwords(Language::English).ok_or(RefineError::StopWordsError)?;
         let stopwords: FxHashSet<&str> = stopwords.iter().copied().collect();
         let mut text_analyzer = TextAnalyzer::builder(SimpleTokenizer::default())
             .filter(LowerCaser)
@@ -36,6 +33,7 @@ impl Refine {
                 tokens.push(stemmer.stem(&token.text).to_string());
             }
         };
+
         token_stream.process(&mut add_token);
 
         Ok(tokens)

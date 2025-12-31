@@ -28,7 +28,7 @@ pub enum Provider {
 #[derive(Debug, Deserialize, Clone)]
 pub struct LanguageModel {
     pub provider: Provider,
-    pub model_name: String,
+    pub model: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -82,10 +82,23 @@ pub enum VectorStore {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct Pinecone {
+    pub api_key: String,
+    pub model: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
+pub enum Reranker {
+    #[serde(rename = "pinecone")]
+    Pinecone(Pinecone),
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub vector_store: VectorStore,
     pub embedder: Embedder,
     pub language_model: LanguageModel,
+    pub reranker: Reranker,
     pub mcp: Option<Mcp>,
     pub grpc: Option<Grpc>,
 }

@@ -24,6 +24,7 @@ lazy_static! {
 
 static EMBEDDER: OnceCell<Arc<dyn EmbedderBase + Send + Sync>> = OnceCell::const_new();
 
+#[derive(Copy, Clone)]
 pub struct Embedder;
 
 type Result<T> = std::result::Result<T, EmbedderError>;
@@ -47,5 +48,5 @@ impl Embedder {
 #[async_trait]
 pub trait EmbedderBase {
     async fn generate_embedding(&self, text: &str) -> Result<Vec<f32>>;
-    async fn generate_embeddings(&self, text: Vec<&str>) -> Result<Vec<Vec<f32>>>;
+    async fn generate_embeddings(&self, text: &[&str]) -> Result<Vec<Vec<f32>>>;
 }

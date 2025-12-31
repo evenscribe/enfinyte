@@ -47,8 +47,8 @@ message MemoryContent {
 }
 
 message MemorySignals {
-  float certainty = 1;
-  float salience = 2;
+  uint32 certainty = 1;
+  uint32 salience = 2;
 }
 
 message TemporalMetadata {

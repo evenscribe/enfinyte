@@ -10,6 +10,8 @@ members = ["crates/*"]
 [workspace.dependencies]
 umem_core = {path = "crates/umem_core"}
 umem_refine = {path = "crates/umem_refine"}
+umem_rerank = {path = "crates/umem_rerank"}
+umem_allocator = {path = "crates/umem_allocator"}
 umem_vector_store = {path = "crates/umem_vector_store"}
 umem_config = {path = "crates/umem_config"}
 umem_embeddings = {path = "crates/umem_embeddings"}
@@ -41,6 +43,9 @@ sqlx = { version =  "0.8.6" , features = [ "postgres", "uuid", "runtime-tokio", 
 thiserror = "2.0.17"
 typed-builder = "0.23.2"
 schemars = "1.1.0"
+futures = "0.3.31"
+num_cpus = "1.17.0"
+oxc_allocator = "0.105.0"
 
 [dependencies]
 umem_grpc_server = { workspace = true }
@@ -54,4 +59,7 @@ tracing-subscriber = { workspace = true }
 tracing = { workspace = true }
 tracing-appender = { workspace = true }
 dirs = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+oxc_allocator = { workspace = true }
 dotenv = { version = "0.15.0" }

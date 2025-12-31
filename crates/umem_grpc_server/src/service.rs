@@ -1,9 +1,9 @@
 use tonic::{Code, Request, Response, Status};
 use umem_controller::MemoryController;
 use umem_proto::{
-    memory_service_server::MemoryService, ContextFilter, CreateMemoryRequest, DeleteMemoryRequest,
-    GetMemoryRequest, ListMemoriesRequest, Memory, MemoryListResponse, MemoryResponse,
-    SearchMemoriesRequest,
+    memory_service_server::MemoryService, provenance_method, ContextFilter, CreateMemoryRequest,
+    DeleteMemoryRequest, GetMemoryRequest, ListMemoriesRequest, Memory, MemoryListResponse,
+    MemoryResponse, SearchMemoriesRequest,
 };
 
 #[derive(Debug, Default)]
@@ -95,10 +95,11 @@ impl MemoryService for ServiceImpl {
             return Err(Status::new(Code::InvalidArgument, "context must be passed"));
         }
 
-        let memories = MemoryController::search_with_context(
+        let memories = MemoryController::multi_search_with_context(
             Self::map_context(request.context.unwrap())
                 .map_err(|e| Status::new(Code::InvalidArgument, e.to_string()))?,
             request.query,
+            None,
         )
         .await
         .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
@@ -119,9 +120,9 @@ impl ServiceImpl {
     fn map_memory(memory: umem_core::Memory) -> Memory {
         let context = memory.context();
         let content = memory.content();
-        let signals = memory.signals();
+        // let signals = memory.signals();
         let temporal = memory.temporal();
-        let provenance = memory.provenance();
+        // let provenance = memory.provenance();
 
         Memory {
             id: memory.get_id().to_string(),
@@ -148,8 +149,10 @@ impl ServiceImpl {
                 tags: content.tags().clone(),
             }),
             signals: Some(umem_proto::MemorySignals {
-                certainty: signals.get_certainty(),
-                salience: signals.get_salience(),
+                // certainty: signals.get_certainty() as u32,
+                // salience: signals.get_salience() as u32,
+                certainty: 0,
+                salience: 0,
             }),
             temporal: Some(umem_proto::TemporalMetadata {
                 created_at: temporal.created_at(),
@@ -157,34 +160,38 @@ impl ServiceImpl {
                 archived_at: temporal.archived_at(),
             }),
             provenance: Some(umem_proto::Provenance {
-                origin: match &provenance.origin {
-                    umem_core::ProvenanceOrigin::User => umem_proto::ProvenanceOrigin::User as i32,
-                    umem_core::ProvenanceOrigin::Agent => {
-                        umem_proto::ProvenanceOrigin::Agent as i32
-                    }
-                },
+                origin: umem_proto::ProvenanceOrigin::User as i32,
                 method: Some(umem_proto::ProvenanceMethod {
-                    method: Some(match &provenance.method {
-                        umem_core::ProvenanceMethod::Direct => {
-                            umem_proto::provenance_method::Method::Direct(true)
-                        }
-                        umem_core::ProvenanceMethod::Extracted { model, prompt } => {
-                            umem_proto::provenance_method::Method::Extracted(
-                                umem_proto::ExtractedMethod {
-                                    model: model.clone(),
-                                    prompt: prompt.clone(),
-                                },
-                            )
-                        }
-                        umem_core::ProvenanceMethod::Summarized { model } => {
-                            umem_proto::provenance_method::Method::Summarized(
-                                umem_proto::SummarizedMethod {
-                                    model: model.clone(),
-                                },
-                            )
-                        }
-                    }),
+                    method: Some(umem_proto::provenance_method::Method::Direct(true)),
                 }),
+                // origin: match &provenance.origin {
+                //     umem_core::ProvenanceOrigin::User => umem_proto::ProvenanceOrigin::User as i32,
+                //     umem_core::ProvenanceOrigin::Agent => {
+                //         umem_proto::ProvenanceOrigin::Agent as i32
+                //     }
+                // },
+                // method: Some(umem_proto::ProvenanceMethod {
+                //     method: Some(match &provenance.method {
+                //         umem_core::ProvenanceMethod::Direct => {
+                //             umem_proto::provenance_method::Method::Direct(true)
+                //         }
+                //         umem_core::ProvenanceMethod::Extracted { model, prompt } => {
+                //             umem_proto::provenance_method::Method::Extracted(
+                //                 umem_proto::ExtractedMethod {
+                //                     model: model.clone(),
+                //                     prompt: prompt.clone(),
+                //                 },
+                //             )
+                //         }
+                //         umem_core::ProvenanceMethod::Summarized { model } => {
+                //             umem_proto::provenance_method::Method::Summarized(
+                //                 umem_proto::SummarizedMethod {
+                //                     model: model.clone(),
+                //                 },
+                //             )
+                //         }
+                //     }),
+                // }),
             }),
         }
     }

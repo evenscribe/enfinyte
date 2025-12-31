@@ -64,7 +64,7 @@ lazy_static! {
 
             Arc::new(LanguageModel {
                 provider,
-                model_name: CONFIG.language_model.model_name.clone(),
+                model_name: CONFIG.language_model.model.clone(),
             })
         }
     };
