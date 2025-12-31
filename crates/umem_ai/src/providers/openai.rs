@@ -265,7 +265,7 @@ impl GeneratesObject for OpenAIProvider {
             .unwrap_or_default();
 
         let output: T =
-            serde_json::from_str(&output_text).map_err(ResponseGeneratorError::Deserialization)?;
+            serde_json::from_str(&output_text).map_err(|e| ResponseGeneratorError::Deserialization(e, output_text))?;
 
         Ok(GenerateObjectResponse { output })
     }

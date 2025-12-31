@@ -10,8 +10,8 @@ use thiserror::Error;
 pub enum ResponseGeneratorError {
     #[error(transparent)]
     Http(#[from] reqwest::Error),
-    #[error(transparent)]
-    Deserialization(#[from] serde_json::Error),
+    #[error("deserialization error, Details: {1}, Response: {0}")]
+    Deserialization(serde_json::Error, String),
     #[error(transparent)]
     TimeoutError(#[from] tokio::time::error::Elapsed),
     #[error("Bedrock Converse API error, Details: {0}")]

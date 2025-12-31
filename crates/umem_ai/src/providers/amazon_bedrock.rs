@@ -135,7 +135,7 @@ impl GeneratesObject for AmazonBedrockProvider {
 
         let output_text = output_message
             .content
-            .first()
+            .last()
             .ok_or(ResponseGeneratorError::EmptyProviderResponse)?
             .as_text()
             .map_err(|_| {
@@ -146,7 +146,7 @@ impl GeneratesObject for AmazonBedrockProvider {
 
         serde_json::from_str::<T>(output_text)
             .map(|output| GenerateObjectResponse { output })
-            .map_err(ResponseGeneratorError::Deserialization)
+            .map_err(|e| ResponseGeneratorError::Deserialization(e, output_text.clone()))
     }
 }
 
