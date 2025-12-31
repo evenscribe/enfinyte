@@ -9,4 +9,5 @@ umem_core = { workspace = true}
 thiserror = { workspace = true }
 typed-builder = { workspace = true }
 schemars = { workspace = true }
+tracing = { workspace = true }
 serde = { workspace = true }

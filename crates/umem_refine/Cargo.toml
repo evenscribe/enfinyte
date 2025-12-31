@@ -1,0 +1,12 @@
+[package]
+name = "umem_refine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+rust-stemmers = "1.2.0"
+stopwords = "0.1.1"
+thiserror = { workspace = true }
+rustc-hash = { workspace = true }
+serde = { workspace = true }
+umem_ai = { workspace = true }

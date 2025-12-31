@@ -153,7 +153,7 @@ impl McpService {
         Parameters(GetMemoriesByQueryRequest { query }): Parameters<GetMemoriesByQueryRequest>,
     ) -> Result<CallToolResult, McpError> {
         let user_id = extract_user_id(parts);
-        let memory_bulk: String = MemoryController::search_for_user(user_id, query)
+        let memory_bulk: String = MemoryController::search_for_user(user_id, query, None)
             .await
             .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?
             .iter()

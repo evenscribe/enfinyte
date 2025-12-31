@@ -6,11 +6,11 @@ use umem_controller::{
 
 #[derive(Debug, Error)]
 pub enum MemoryMachineError {
-    #[error("memory create failed : {0}")]
+    #[error("memory controller action failed with : {0}")]
     MemoryControllerError(#[from] MemoryControllerError),
 }
 
-impl MemoryMachine {
+impl<'alloc> MemoryMachine<'alloc> {
     pub async fn add_memory(
         memory: CreateMemoryRequest,
         options: Option<CreateMemoryOptions>,

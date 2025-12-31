@@ -14,7 +14,7 @@ pub enum TemporalMetadataError {
     ArchivedBeforeUpdated { archived: i64, updated: i64 },
 }
 
-#[derive(Serialize, Default, Deserialize)]
+#[derive(Serialize, Default, Debug, Deserialize, Hash)]
 pub struct TemporalMetadata {
     created_at: i64,
     updated_at: Option<i64>,
