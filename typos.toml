@@ -1,0 +1,5 @@
+[default]
+check-filename = true
+check-file = true
+unicode=true
+locale = "en"

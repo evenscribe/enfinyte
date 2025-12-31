@@ -3,21 +3,19 @@ use thiserror::Error;
 
 #[derive(Error, Debug, Clone)]
 pub enum CredenceError {
-    #[error("credence must be a finite number")]
-    NotFinite,
     #[error("credence must be in the unit interval [0.0, 1.0], got {0}")]
     OutOfRange(f32),
+
+    #[error("credence must be finite, found : {0}")]
+    NotFinite(f32),
 }
 
-#[derive(Serialize, schemars::JsonSchema, Deserialize, Default, Copy, Clone)]
+#[derive(Serialize, schemars::JsonSchema, Deserialize, Debug, Default, Copy, Clone)]
 pub struct Credence(f32);
 
 impl Credence {
     pub fn new(value: f32) -> Result<Self, CredenceError> {
-        if !value.is_finite() {
-            return Err(CredenceError::NotFinite);
-        }
-
+        if !value.is_finite() {}
         if !(0.0..=1.0).contains(&value) {
             return Err(CredenceError::OutOfRange(value));
         }

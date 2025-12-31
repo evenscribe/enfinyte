@@ -1,5 +1,6 @@
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
+use std::hash::Hash;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 use uuid::Uuid;
@@ -15,6 +16,7 @@ pub mod query;
 pub mod temporal_metadata;
 
 use crate::credence::{Credence, CredenceError};
+
 pub use crate::{
     lifecycle_state::*, memory_content::*, memory_context::*, memory_kind::*, memory_signals::*,
     provenance::*, query::*, temporal_metadata::*,
@@ -53,16 +55,22 @@ pub enum MemoryError {
     ActiveWithArchivedTimestamp,
 }
 
-#[derive(TypedBuilder, Serialize, Default, Deserialize)]
+#[derive(TypedBuilder, Serialize, Debug, Default, Deserialize)]
 pub struct Memory {
     id: Uuid,
     context: MemoryContext,
     lifecycle: LifecycleState,
     kind: MemoryKind,
     content: MemoryContent,
-    signals: MemorySignals,
+    // signals: MemorySignals,
     temporal: TemporalMetadata,
-    provenance: Provenance,
+    // provenance: Provenance,
+}
+
+impl Hash for Memory {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.id.hash(state);
+    }
 }
 
 type Result<T> = std::result::Result<T, MemoryError>;
@@ -70,8 +78,8 @@ type Result<T> = std::result::Result<T, MemoryError>;
 impl Memory {
     pub fn validate(&self) -> Result<()> {
         self.context.validate()?;
-        self.temporal.validate()?;
-        self.provenance.validate()?;
+        // self.temporal.validate()?;
+        // self.provenance.validate()?;
 
         match (&self.lifecycle, self.temporal.archived_at()) {
             (LifecycleState::Archived, None) => {
@@ -105,9 +113,9 @@ impl Memory {
         self.lifecycle.is_archived()
     }
 
-    pub fn score(&self) -> f32 {
-        self.signals.get_certainty() * self.signals.get_salience()
-    }
+    // pub fn score(&self) -> u8 {
+    //     self.signals.get_certainty() * self.signals.get_salience()
+    // }
 
     pub fn get_id(&self) -> &Uuid {
         &self.id
@@ -133,17 +141,17 @@ impl Memory {
         &self.content
     }
 
-    pub fn signals(&self) -> &MemorySignals {
-        &self.signals
-    }
+    // pub fn signals(&self) -> &MemorySignals {
+    //     &self.signals
+    // }
 
     pub fn temporal(&self) -> &TemporalMetadata {
         &self.temporal
     }
 
-    pub fn provenance(&self) -> &Provenance {
-        &self.provenance
-    }
+    // pub fn provenance(&self) -> &Provenance {
+    //     &self.provenance
+    // }
 
     pub fn gen_dummy() -> Result<Memory> {
         Ok(Memory::builder()
@@ -151,14 +159,14 @@ impl Memory {
             .content(MemoryContent::new("content", vec![])?)
             .context(MemoryContext::for_user("test")?)
             .kind(MemoryKind::Working)
-            .signals(MemorySignals::new(
-                Credence::new(0.2)?,
-                Credence::new(0.3)?,
-            )?)
-            .provenance(Provenance {
-                origin: ProvenanceOrigin::User,
-                method: ProvenanceMethod::Direct,
-            })
+            // .signals(MemorySignals::new(
+            //     Credence::new(0.2)?,
+            //     Credence::new(0.3)?,
+            // )?)
+            // .provenance(Provenance {
+            //     origin: ProvenanceOrigin::User,
+            //     method: ProvenanceMethod::Direct,
+            // })
             .lifecycle(LifecycleState::Active)
             .temporal(TemporalMetadata::new(Utc::now()))
             .build())

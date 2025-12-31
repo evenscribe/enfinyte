@@ -1,6 +1,6 @@
-use umem_refine::Refine;
+use umem_refine::Segmenter;
 
 fn main() {
-    let t = Refine::process("hey there, how are you doing").unwrap();
+    let t = Segmenter::process("hey there, how are you doing").unwrap();
     print!("{:?}", t);
 }
