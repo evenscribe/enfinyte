@@ -10,7 +10,10 @@ use async_trait::async_trait;
 use aws_config::{BehaviorVersion, Region};
 use aws_sdk_bedrockruntime::{
     operation::converse::builders::ConverseFluentBuilder,
-    types::{ContentBlock, ImageBlock, InferenceConfiguration, Message},
+    types::{
+        AnyToolChoice, ContentBlock, ConverseOutput, ImageBlock, InferenceConfiguration, Message,
+        Tool, ToolChoice, ToolConfiguration, ToolInputSchema, ToolSpecification,
+    },
 };
 use base64::Engine;
 use schemars::JsonSchema;
@@ -54,7 +57,10 @@ impl GeneratesText for AmazonBedrockProvider {
             ))
             .send()
             .await
-            .map_err(|e| ResponseGeneratorError::BedrockConverseError(e.to_string()))?;
+            .map_err(|e| {
+                tracing::error!("{}", e);
+                ResponseGeneratorError::BedrockConverseError(format!("{:?}", e))
+            })?;
 
         let converse_output = match converse_response.output {
             Some(output) => output,
@@ -101,7 +107,7 @@ impl GeneratesObject for AmazonBedrockProvider {
                 InferenceConfiguration::builder()
                     .temperature(request.temperature.unwrap_or(0.0))
                     .top_p(request.top_p.unwrap_or(1.0))
-                    .max_tokens(request.max_output_tokens.unwrap_or(0_usize) as i32)
+                    .max_tokens(request.max_output_tokens.unwrap_or(5140_usize) as i32)
                     .build(),
             ))
             .additional_model_request_fields(aws_smithy_types::Document::Object(
@@ -127,26 +133,35 @@ impl GeneratesObject for AmazonBedrockProvider {
             }
         };
 
-        let output_message = converse_output.as_message().map_err(|_| {
-            ResponseGeneratorError::InvalidProviderResponse(
-                "was expecting the output to be a bedrock message".into(),
-            )
-        })?;
+        let output_message = match converse_output {
+            ConverseOutput::Message(msg) => msg,
+            _ => {
+                return Err(ResponseGeneratorError::InvalidProviderResponse(
+                    "was expecting the output to be a bedrock message".into(),
+                ))
+            }
+        };
 
-        let output_text = output_message
+        let json_tool = output_message
             .content
-            .last()
-            .ok_or(ResponseGeneratorError::EmptyProviderResponse)?
-            .as_text()
+            .into_iter()
+            .rfind(|content_item| content_item.is_tool_use())
+            .ok_or(ResponseGeneratorError::EmptyProviderResponse)?;
+
+        let json_tool_input = json_tool
+            .as_tool_use()
             .map_err(|_| {
                 ResponseGeneratorError::InvalidProviderResponse(
-                    "was expecting the output message content to be text".into(),
+                    "was expecting the model to call the tool use".into(),
                 )
-            })?;
+            })?
+            .input();
 
-        serde_json::from_str::<T>(output_text)
+        serde_json::from_value::<T>(utils::aws_smithy_document_to_json(json_tool_input))
             .map(|output| GenerateObjectResponse { output })
-            .map_err(|e| ResponseGeneratorError::Deserialization(e, output_text.clone()))
+            .map_err(|e| {
+                ResponseGeneratorError::Deserialization(e, format!("{:?}", json_tool_input))
+            })
     }
 }
 
@@ -157,17 +172,9 @@ impl AmazonBedrockProvider {
         &self,
         request: &GenerateObjectRequest<T>,
     ) -> anyhow::Result<ConverseFluentBuilder> {
-        let mut system = OpenAIProvider::normalize_system_message(&request.messages);
-        system.push_str(
-            r#"
-            **Critical Instruction**: ALWAYS and ONLY respond with a JSON object that conforms EXACTLY to the provided JSON Schema (enclosed in `<OutputSchema>`).
-        "#,
-        );
-        let mut user_messages = Self::normalize_user_messages(&request.messages).unwrap();
-        user_messages.push(ContentBlock::Text(format!(
-            "<OutputSchema>\n{}\n</OutputSchema>",
-            serde_json::to_string_pretty(&request.output_schema,)?
-        )));
+        let system = OpenAIProvider::normalize_system_message(&request.messages);
+        let user_messages = Self::normalize_user_messages(&request.messages).unwrap();
+        let output_schema_value = serde_json::to_value(&request.output_schema)?;
 
         Ok(self
             .client
@@ -176,6 +183,20 @@ impl AmazonBedrockProvider {
             .system(aws_sdk_bedrockruntime::types::SystemContentBlock::Text(
                 system,
             ))
+            .tool_config(
+                ToolConfiguration::builder()
+                    .tools(Tool::ToolSpec(
+                        ToolSpecification::builder()
+                            .name("json_output")
+                            .description("Return output as JSON.")
+                            .input_schema(ToolInputSchema::Json(
+                                utils::json_to_aws_smithy_document(output_schema_value),
+                            ))
+                            .build()?,
+                    ))
+                    .tool_choice(ToolChoice::Any(AnyToolChoice::builder().build()))
+                    .build()?,
+            )
             .messages(
                 Message::builder()
                     .role("user".into())
