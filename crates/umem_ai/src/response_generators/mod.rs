@@ -1,9 +1,13 @@
 pub mod generate_object;
-mod generate_text;
+pub mod generate_text;
 pub mod messages;
+pub mod rerank;
+pub mod structured_rerank;
 
 pub use generate_object::*;
 pub use generate_text::*;
+pub use messages::*;
+pub use rerank::*;
 
 use thiserror::Error;
 #[derive(Error, Debug)]
