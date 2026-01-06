@@ -76,6 +76,15 @@ where
     pub timeout: Duration,
 }
 
+impl<T> GenerateObjectRequest<T>
+where
+    T: Clone + JsonSchema + Send + Sync + Serialize + DeserializeOwned,
+{
+    fn builder() -> GenerateObjectRequestBuilder<T> {
+        GenerateObjectRequestBuilder::new()
+    }
+}
+
 #[derive(Debug)]
 pub struct GenerateObjectResponse<T> {
     pub output: T,

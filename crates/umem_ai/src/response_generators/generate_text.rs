@@ -65,6 +65,12 @@ pub struct GenerateTextRequest {
     pub timeout: Duration,
 }
 
+impl GenerateTextRequest {
+    pub fn builder() -> GenerateTextRequestBuilder {
+        GenerateTextRequestBuilder::new()
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum GenerateTextRequestBuilderError {
     #[error("either set the `system` field or provide a system message in `messages` array")]
