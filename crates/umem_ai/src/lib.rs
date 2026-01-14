@@ -2,18 +2,16 @@
 #![allow(dead_code)]
 mod providers;
 mod response_generators;
-pub(crate) mod utils;
-
-use std::sync::Arc;
+mod utils;
 
 use anyhow::Result;
 use async_trait::async_trait;
 use lazy_static::lazy_static;
-use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Serialize};
-
 pub use providers::*;
 pub use response_generators::*;
+use schemars::JsonSchema;
+use serde::{Serialize, de::DeserializeOwned};
+use std::sync::Arc;
 use umem_config::CONFIG;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
@@ -40,6 +38,25 @@ impl LanguageModel {
     }
 }
 
+#[derive(Clone)]
+pub struct RerankingModel {
+    pub provider: Arc<AIProvider>,
+    pub model_name: String,
+}
+
+impl RerankingModel {
+    fn new(provider: Arc<AIProvider>, model_name: String) -> Self {
+        Self {
+            provider,
+            model_name,
+        }
+    }
+
+    pub fn get_model() -> Arc<LanguageModel> {
+        Arc::clone(&LANGUAGE_MODEL)
+    }
+}
+
 pub enum AIProvider {
     OpenAI(OpenAIProvider),
     AzureOpenAI(AzureOpenAIProvider),
@@ -47,6 +64,7 @@ pub enum AIProvider {
     Anthropic(AnthropicProvider),
     XAI(XAIProvider),
     AmazonBedrock(AmazonBedrockProvider),
+    Cohere(CohereProvider),
 }
 
 lazy_static! {
@@ -96,6 +114,30 @@ impl AIProvider {
         }
         .await
     }
+
+    pub(crate) async fn do_reranking(
+        &self,
+        request: RerankRequest,
+    ) -> Result<RerankResponse, ResponseGeneratorError> {
+        match self {
+            AIProvider::Cohere(provider) => provider.rerank(request),
+            _ => unimplemented!(),
+        }
+        .await
+    }
+
+    pub(crate) async fn do_structured_reranking<T>(
+        &self,
+        request: StructuredRerankRequest<T>,
+    ) -> Result<StructuredRerankResponse<T>, ResponseGeneratorError>
+    where
+        T: Serialize + Clone + Send + Sync,
+    {
+        match self {
+            AIProvider::Cohere(provider) => provider.rerank_structured(request).await,
+            _ => unimplemented!(),
+        }
+    }
 }
 
 #[async_trait]
@@ -112,6 +154,24 @@ pub trait GeneratesObject {
         &self,
         request: GenerateObjectRequest<T>,
     ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>;
+}
+
+#[async_trait]
+pub trait Reranks {
+    async fn rerank(
+        &self,
+        request: RerankRequest,
+    ) -> Result<RerankResponse, ResponseGeneratorError>;
+}
+
+#[async_trait]
+pub trait ReranksStructuredData {
+    async fn rerank_structured<T>(
+        &self,
+        request: StructuredRerankRequest<T>,
+    ) -> Result<StructuredRerankResponse<T>, ResponseGeneratorError>
+    where
+        T: Serialize + Clone + Send + Sync;
 }
 
 impl From<OpenAIProvider> for AIProvider {

@@ -1,8 +1,8 @@
+use crate::GeneratesText;
+use crate::ResponseGeneratorError;
 use crate::response_generators::GenerateTextRequest;
 use crate::response_generators::GenerateTextResponse;
 use crate::utils;
-use crate::GeneratesText;
-use crate::ResponseGeneratorError;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::header::HeaderMap;
@@ -19,9 +19,7 @@ pub struct AnthropicProvider {
     #[builder(default = "https://api.anthropic.com/v1".into())]
     pub base_url: String,
 
-    #[builder(default = HeaderMap::default(), setter(transform = |value: Vec<(String, String)>| 
-           utils::build_header_map(value.as_slice()).unwrap_or_default()
-    ))]
+    #[builder(default = HeaderMap::default(), setter(transform = |value: Vec<(String, String)>| utils::build_header_map(value.as_slice()).unwrap_or_default()))]
     pub headers: HeaderMap,
 }
 
@@ -41,7 +39,9 @@ mod tests {
 
     #[test]
     fn test_building_anthropic_provider() {
-        let provider = AnthropicProvider::builder().api_key("sk-some-api-key").build();
+        let provider = AnthropicProvider::builder()
+            .api_key("sk-some-api-key")
+            .build();
         dbg!("Anthropic Provider: {:?}", provider);
     }
 }

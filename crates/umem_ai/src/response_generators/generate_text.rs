@@ -1,8 +1,8 @@
+use crate::LanguageModel;
+use crate::ResponseGeneratorError;
 use crate::response_generators::messages::Message;
 use crate::utils;
 use crate::utils::is_retryable_error;
-use crate::LanguageModel;
-use crate::ResponseGeneratorError;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use reqwest::header::HeaderMap;

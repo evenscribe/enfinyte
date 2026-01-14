@@ -1,9 +1,9 @@
+use crate::{LanguageModel, ResponseGeneratorError, utils};
 use crate::{response_generators::messages::Message, utils::is_retryable_error};
-use crate::{utils, LanguageModel, ResponseGeneratorError};
 use backon::{ExponentialBuilder, Retryable};
 use reqwest::header::HeaderMap;
-use schemars::{schema_for, JsonSchema, Schema};
-use serde::{de::DeserializeOwned, Serialize};
+use schemars::{JsonSchema, Schema, schema_for};
+use serde::{Serialize, de::DeserializeOwned};
 use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 use thiserror::Error;
