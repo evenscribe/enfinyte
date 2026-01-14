@@ -121,6 +121,7 @@ impl AIProvider {
     ) -> Result<RerankResponse, ResponseGeneratorError> {
         match self {
             AIProvider::Cohere(provider) => provider.rerank(request),
+            AIProvider::AmazonBedrock(provider) => provider.rerank(request),
             _ => unimplemented!(),
         }
         .await
@@ -135,6 +136,7 @@ impl AIProvider {
     {
         match self {
             AIProvider::Cohere(provider) => provider.rerank_structured(request).await,
+            AIProvider::AmazonBedrock(provider) => provider.rerank_structured(request).await,
             _ => unimplemented!(),
         }
     }

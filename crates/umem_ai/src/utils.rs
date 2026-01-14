@@ -54,13 +54,17 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
             );
             true
         }
-        ResponseGeneratorError::YamlSerializationError(e) => {
-            tracing::error!("YAML serialization error: {}", e);
+        ResponseGeneratorError::StructuredRerankDocumentsSerializationError(e) => {
+            tracing::error!("Structured rerank documents serialization error: {}", e);
             false
         }
         ResponseGeneratorError::InvalidArgumentsProvided(e) => {
             tracing::error!("Invalid arguments provided: {}", e);
             false
+        }
+        ResponseGeneratorError::BedrockAgentRerankCommandSendError(e) => {
+            tracing::error!("Bedrock agent rerank command send error: {}", e);
+            true
         }
     }
 }
