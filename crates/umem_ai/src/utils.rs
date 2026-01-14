@@ -20,7 +20,8 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
         ResponseGeneratorError::Deserialization(error, response) => {
             tracing::warn!(
                 "Serialization error, AI Might have built a bad JSON output: \n Error: {} \n Received Response: {}",
-                error,response
+                error,
+                response
             );
             true
         }
@@ -52,6 +53,14 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
                 sdk_error
             );
             true
+        }
+        ResponseGeneratorError::YamlSerializationError(e) => {
+            tracing::error!("YAML serialization error: {}", e);
+            false
+        }
+        ResponseGeneratorError::InvalidArgumentsProvided(e) => {
+            tracing::error!("Invalid arguments provided: {}", e);
+            false
         }
     }
 }
