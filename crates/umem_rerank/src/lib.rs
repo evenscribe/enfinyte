@@ -8,8 +8,10 @@ use typed_builder::TypedBuilder;
 use umem_config::CONFIG;
 use umem_core::Memory;
 
+mod cohere;
 mod pinecone;
 
+pub use cohere::*;
 pub use pinecone::*;
 
 static RERANKER: OnceCell<Arc<dyn RerankerBase + Send + Sync>> = OnceCell::const_new();
@@ -26,6 +28,10 @@ impl Reranker {
                         let pinecone = Pinecone::new(config);
                         Ok(Arc::new(pinecone) as Arc<dyn RerankerBase + Send + Sync>)
                     }
+                    umem_config::Reranker::Cohere(config) => {
+                        let cohere = Cohere::new(config);
+                        Ok(Arc::new(cohere) as Arc<dyn RerankerBase + Send + Sync>)
+                    }
                 }
             })
             .await
@@ -36,13 +42,28 @@ impl Reranker {
 #[derive(TypedBuilder, Debug, Default, Deserialize)]
 pub struct RerankOptions {
     #[builder(default = None)]
-    pub pinecone: Option<PineconeOptions>,
+    pub top_n: Option<usize>,
+
+    #[builder(default = None)]
+    pub structured_input: Option<bool>,
+}
+
+#[derive(Error, Debug)]
+pub enum RerankOptionsError {
+    #[error("top_n : {0} cannot be more than doc_len: {1}")]
+    InvalidTopN(usize, usize),
+
+    #[error("field '{0}' cannot be used for '{1}'")]
+    InvalidField(String, String),
 }
 
 #[derive(Error, Debug)]
 pub enum RerankError {
     #[error("pinecone failed with : {0}")]
     PineconeError(#[from] PineconeError),
+
+    #[error("cohere failed with : {0}")]
+    CohereError(#[from] CohereError),
 }
 
 #[derive(Debug, Deserialize)]

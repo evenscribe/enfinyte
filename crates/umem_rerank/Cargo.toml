@@ -14,3 +14,4 @@ umem_core = { workspace = true }
 umem_config = { workspace = true }
 tokio = { workspace = true }
 umem_rerank_derive = { path = "./umem_rerank_derive" }
+serde-saphyr = { workspace = true }

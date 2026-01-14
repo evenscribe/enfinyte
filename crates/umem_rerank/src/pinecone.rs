@@ -1,47 +1,16 @@
+use super::{
+    DataRow, RerankError, RerankOptions, RerankOptionsError, RerankResponse, RerankerBase,
+};
 use async_trait::async_trait;
 use reqwest::Client;
 use serde::Deserialize;
 use serde_json::json;
 use thiserror::Error;
-use typed_builder::TypedBuilder;
 use umem_core::Memory;
-
-use crate::{DataRow, RerankOptions, RerankResponse};
-
-use super::{RerankError, RerankerBase};
-
-#[derive(TypedBuilder, Debug, Default, Deserialize)]
-pub struct PineconeOptions {
-    #[builder(default = None)]
-    pub top_n: Option<usize>,
-}
-impl PineconeOptions {
-    pub fn validate(&self, doc_len: usize) -> Result<(), PineconeOptionsError> {
-        if let Some(top_n) = self.top_n {
-            if doc_len < top_n {
-                return Err(PineconeOptionsError::InvalidTopN(top_n, doc_len));
-            }
-        }
-        Ok(())
-    }
-}
-
-#[derive(Error, Debug)]
-pub enum PineconeOptionsError {
-    #[error("top_n : {0} cannot be more than doc_len: {1}")]
-    InvalidTopN(usize, usize),
-}
 
 #[derive(Debug, Deserialize)]
 pub struct PineconeResponse {
-    pub model: String,
     pub data: Vec<PineconeDataRow>,
-    pub usage: Usage,
-}
-
-#[derive(Debug, Deserialize)]
-pub struct Usage {
-    pub rerank_units: usize,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,8 +33,8 @@ pub enum PineconeError {
     #[error("pinecone api call failed with: {0}")]
     ReqwestError(#[from] reqwest::Error),
 
-    #[error("invalid options were passed: {0}")]
-    PineconeOptionsError(#[from] PineconeOptionsError),
+    #[error("rerank option action failed with: {0}")]
+    RerankOptionsError(#[from] RerankOptionsError),
 }
 
 pub struct Pinecone {
@@ -80,6 +49,28 @@ impl Pinecone {
             model: config.model,
         }
     }
+
+    fn validate(
+        &self,
+        options: Option<RerankOptions>,
+        doc_len: usize,
+    ) -> Result<(), RerankOptionsError> {
+        if let Some(options) = options {
+            if let Some(top_n) = options.top_n {
+                if doc_len < top_n {
+                    return Err(RerankOptionsError::InvalidTopN(top_n, doc_len));
+                }
+            }
+            if options.structured_input.is_some() {
+                return Err(RerankOptionsError::InvalidField(
+                    "structured_input".to_string(),
+                    "Pinecone".to_string(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
 }
 
 impl Pinecone {
@@ -91,9 +82,7 @@ impl Pinecone {
     ) -> Result<PineconeResponse, PineconeError> {
         let client = Client::new();
 
-        let options = options.unwrap_or_default();
-        let pinecone_options = options.pinecone.unwrap_or_default();
-        pinecone_options.validate(documents.len())?;
+        self.validate(options, documents.len())?;
 
         let documents: Vec<serde_json::Value> = documents
             .iter()

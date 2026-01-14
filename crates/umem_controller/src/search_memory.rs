@@ -1,13 +1,14 @@
 use super::{MemoryController, MemoryControllerError};
-use std::sync::Arc;
+use std::{sync::Arc, time::Instant};
 use thiserror::Error;
 use tokio::{sync::AcquireError, task::JoinError};
+use tracing::info;
 use typed_builder::TypedBuilder;
 use umem_core::{Memory, MemoryContext, MemoryContextError, Query};
-use umem_embeddings::{Embedder, EmbedderBase, EmbedderError};
+use umem_embeddings::{EmbedderBase, EmbedderError};
 use umem_refine::{RefineError, Segmenter};
-use umem_rerank::{RerankError, Reranker};
-use umem_vector_store::{VectorStore, VectorStoreError};
+use umem_rerank::RerankError;
+use umem_vector_store::VectorStoreError;
 
 #[derive(Debug, Error)]
 pub enum SearchMemoryError {
@@ -41,24 +42,24 @@ pub struct SearchMemoryOptions {
 
 impl MemoryController {
     pub async fn search_for_user(
+        &self,
         user_id: String,
         query: String,
         options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, MemoryControllerError> {
-        Ok(Self::search_for_user_impl(user_id, query, options).await?)
+        Ok(self.search_for_user_impl(user_id, query, options).await?)
     }
 
     async fn search_for_user_impl(
+        &self,
         user_id: String,
         query: String,
-        options: Option<SearchMemoryOptions>,
+        _options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, SearchMemoryError> {
-        let options = options.unwrap_or_default();
-        let vector_store = VectorStore::get_store().await?;
-        let embedder = options.embedder.unwrap_or(Embedder::get_embedder().await?);
+        let vector_store = Arc::clone(&self.vector_store);
+        let embedder = Arc::clone(&self.embedder);
 
         let vector = embedder.generate_embedding(query.as_str()).await?;
-
         let query = Query::builder()
             .vector(vector)
             .context(MemoryContext::for_user(user_id)?)
@@ -69,63 +70,82 @@ impl MemoryController {
     }
 
     pub async fn search_with_context(
+        &self,
         context: MemoryContext,
         query: String,
         options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, MemoryControllerError> {
-        Ok(Self::search_with_context_impl(context, query, options).await?)
+        Ok(self
+            .search_with_context_impl(context, query, options)
+            .await?)
     }
 
     async fn search_with_context_impl(
+        &self,
         context: MemoryContext,
         query: String,
-        options: Option<SearchMemoryOptions>,
+        _options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, SearchMemoryError> {
-        let options = options.unwrap_or_default();
-        let vector_store = VectorStore::get_store().await?;
-        let embedder = options.embedder.unwrap_or(Embedder::get_embedder().await?);
+        let vector_store = Arc::clone(&self.vector_store);
+        let embedder = Arc::clone(&self.embedder);
+        let reranker = Arc::clone(&self.reranker);
 
         let vector = embedder.generate_embedding(query.as_str()).await?;
-
-        let query = Query::builder()
+        let vector_query = Query::builder()
             .vector(vector)
             .context(context)
-            .limit(1000)
+            .limit(20)
             .build();
 
-        Ok(vector_store.search(query).await?)
+        let mut memories = vector_store.search(vector_query).await?;
+
+        let data = reranker.rank(query, &memories, None).await?.data;
+
+        let memories: Vec<Memory> = data
+            .iter()
+            .map(|row| std::mem::take(&mut memories[row.index]))
+            .collect();
+
+        Ok(memories)
     }
 
     pub async fn multi_search_with_context(
+        &self,
         context: MemoryContext,
         query: String,
         options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, MemoryControllerError> {
-        Ok(Self::multi_search_with_context_impl(context, query, options).await?)
+        Ok(self
+            .multi_search_with_context_impl(context, query, options)
+            .await?)
     }
 
     async fn multi_search_with_context_impl(
+        &self,
         context: MemoryContext,
         query: String,
-        options: Option<SearchMemoryOptions>,
+        _options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, SearchMemoryError> {
         use futures::stream::{FuturesUnordered, StreamExt};
         use tokio::sync::Semaphore;
         use tokio::task::JoinHandle;
 
-        let options = options.unwrap_or_default();
-        let vector_store = VectorStore::get_store().await?;
-        let embedder = options.embedder.unwrap_or(Embedder::get_embedder().await?);
-        let reranker = Reranker::get_reranker().await?;
+        let vector_store = Arc::clone(&self.vector_store);
+        let embedder = Arc::clone(&self.embedder);
+        let reranker = Arc::clone(&self.reranker);
 
         let semaphore = Arc::new(Semaphore::new(8)); // limit concurrency (tune this!)
         let mut tasks: FuturesUnordered<JoinHandle<Result<Vec<Memory>, SearchMemoryError>>> =
             FuturesUnordered::new();
-        let sub_queries = Segmenter::process(&query)?;
-        dbg!(&sub_queries);
+        let mut sub_queries = Segmenter::process(&query)?;
+        sub_queries.push(query.clone());
 
         let sub_query_slices: Vec<&str> = sub_queries.iter().map(|s| s.as_str()).collect();
+
+        let start = Instant::now();
         let vectors = embedder.generate_embeddings(&sub_query_slices).await?;
+        let duration = start.elapsed();
+        info!("Embedder time : {:?}", duration);
 
         for vector in vectors {
             let permit = Arc::clone(&semaphore).acquire_owned().await?;
@@ -146,12 +166,19 @@ impl MemoryController {
 
         let mut all_memories = Vec::new();
 
+        let start = Instant::now();
         while let Some(task) = tasks.next().await {
             let mut memories = task??;
             all_memories.append(&mut memories);
         }
+        let duration = start.elapsed();
+        info!("Searching time : {:?}", duration);
 
+        let start = Instant::now();
         let data = reranker.rank(query, &all_memories, None).await?.data;
+        let duration = start.elapsed();
+        info!("Ranking time : {:?}", duration);
+
         // TODO: hybrid search with "row.score" + other metrics
         let memories: Vec<Memory> = data
             .iter()

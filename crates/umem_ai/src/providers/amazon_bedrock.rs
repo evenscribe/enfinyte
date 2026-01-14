@@ -674,9 +674,9 @@ mod tests {
     async fn test_bedrock_generate_object() {
         let provider = Arc::new(AIProvider::from(
             AmazonBedrockProviderBuilder::default()
-                .region("REGION")
-                .access_key_id("ACESS_KEY_ID")
-                .secret_access_key("SECRET_ACCESS_KEY")
+                .region("us-west-2")
+                .access_key_id("test_access_key_id")
+                .secret_access_key("test_secret_access_key")
                 .build()
                 .await
                 .unwrap(),

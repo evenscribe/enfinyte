@@ -1,9 +1,17 @@
 use tonic::{Code, Request, Response, Status};
 use umem_controller::MemoryController;
 use umem_proto::{
-    memory_service_server::MemoryService, provenance_method, ContextFilter, CreateMemoryRequest,
-    DeleteMemoryRequest, GetMemoryRequest, ListMemoriesRequest, Memory, MemoryListResponse,
-    MemoryResponse, SearchMemoriesRequest,
+    memory_service_server::MemoryService,
+    // provenance_method,
+    ContextFilter,
+    CreateMemoryRequest,
+    DeleteMemoryRequest,
+    GetMemoryRequest,
+    ListMemoriesRequest,
+    Memory,
+    MemoryListResponse,
+    MemoryResponse,
+    SearchMemoriesRequest,
 };
 
 #[derive(Debug, Default)]

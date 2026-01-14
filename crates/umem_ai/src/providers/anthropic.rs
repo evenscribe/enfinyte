@@ -19,7 +19,9 @@ pub struct AnthropicProvider {
     #[builder(default = "https://api.anthropic.com/v1".into())]
     pub base_url: String,
 
-    #[builder(default = HeaderMap::default(), setter(transform = |value: Vec<(String, String)>| utils::build_header_map(value.as_slice()).unwrap_or_default()))]
+    #[builder(default = HeaderMap::default(), setter(transform = |value: Vec<(String, String)>|
+           utils::build_header_map(value.as_slice()).unwrap_or_default()
+    ))]
     pub headers: HeaderMap,
 }
 

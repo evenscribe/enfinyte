@@ -20,9 +20,19 @@ pub struct OpenAI {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct AmazonBedrock {
+    pub region: String,
+    pub key_id: String,
+    pub access_key: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub enum Provider {
     #[serde(rename = "openai")]
     OpenAI(OpenAI),
+
+    #[serde(rename = "amazon_bedrock")]
+    AmazonBedrock(AmazonBedrock),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -69,8 +79,8 @@ pub struct Qdrant {
 #[derive(Debug, Deserialize, Clone)]
 pub struct PgVector {
     pub url: String,
-    pub collection_name: String,
     pub embedding_model_dimensions: u16,
+    pub collection_name: String,
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -88,9 +98,18 @@ pub struct Pinecone {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct Cohere {
+    pub api_key: String,
+    pub model: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub enum Reranker {
     #[serde(rename = "pinecone")]
     Pinecone(Pinecone),
+
+    #[serde(rename = "cohere")]
+    Cohere(Cohere),
 }
 
 #[derive(Debug, Deserialize, Clone)]

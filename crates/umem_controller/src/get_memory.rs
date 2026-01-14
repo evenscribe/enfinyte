@@ -1,7 +1,9 @@
+use std::sync::Arc;
+
 use super::{MemoryController, MemoryControllerError};
 use thiserror::Error;
 use umem_core::Memory;
-use umem_vector_store::{VectorStore, VectorStoreError};
+use umem_vector_store::VectorStoreError;
 
 #[derive(Debug, Error)]
 pub enum GetMemoryError {
@@ -13,12 +15,12 @@ pub enum GetMemoryError {
 }
 
 impl MemoryController {
-    pub async fn get(id: String) -> Result<Memory, MemoryControllerError> {
-        Ok(Self::get_impl(id).await?)
+    pub async fn get(&self, id: String) -> Result<Memory, MemoryControllerError> {
+        Ok(self.get_impl(id).await?)
     }
 
-    async fn get_impl(id: String) -> Result<Memory, GetMemoryError> {
-        let vector_store = VectorStore::get_store().await?;
+    async fn get_impl(&self, id: String) -> Result<Memory, GetMemoryError> {
+        let vector_store = Arc::clone(&self.vector_store);
         Ok(vector_store.get(id.as_str()).await?)
     }
 }

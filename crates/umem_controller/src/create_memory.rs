@@ -1,17 +1,16 @@
 use super::{MemoryController, MemoryControllerError};
 use chrono::Utc;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
 use thiserror::Error;
-use tracing::info;
 use typed_builder::TypedBuilder;
-use umem_ai::LanguageModel;
+use umem_ai::{AIProviderError, LanguageModel};
 use umem_annotations::{Annotation, AnnotationError, LLMAnnotated};
 use umem_core::{
     LifecycleState, Memory, MemoryContentError, MemoryContext, MemoryContextError, MemoryError,
     TemporalMetadata,
 };
-use umem_embeddings::{Embedder, EmbedderBase, EmbedderError};
-use umem_vector_store::{VectorStore, VectorStoreError};
+use umem_embeddings::{EmbedderBase, EmbedderError};
+use umem_vector_store::VectorStoreError;
 use uuid::Uuid;
 
 #[derive(Debug, Error)]
@@ -24,6 +23,9 @@ pub enum CreateMemoryError {
 
     #[error("embedder action failed with: {0}")]
     EmbedderError(#[from] EmbedderError),
+
+    #[error("ai provider action failed with: {0}")]
+    AIProviderError(#[from] AIProviderError),
 }
 
 #[derive(Debug, Error)]
@@ -125,36 +127,25 @@ pub struct CreateMemoryOptions {
 
 impl MemoryController {
     pub async fn create(
+        &self,
         request: CreateMemoryRequest,
         options: Option<CreateMemoryOptions>,
     ) -> Result<Memory, MemoryControllerError> {
-        Ok(Self::create_impl(request, options).await?)
+        Ok(self.create_impl(request, options).await?)
     }
 
     async fn create_impl(
+        &self,
         request: CreateMemoryRequest,
-        options: Option<CreateMemoryOptions>,
+        _options: Option<CreateMemoryOptions>,
     ) -> Result<Memory, CreateMemoryError> {
-        let options = options.unwrap_or_default();
-        let vector_store = VectorStore::get_store().await?;
-        let embedder = options.embedder.unwrap_or(Embedder::get_embedder().await?);
-        let model = options.model.unwrap_or(LanguageModel::get_model());
+        let vector_store = Arc::clone(&self.vector_store);
+        let embedder = Arc::clone(&self.embedder);
+        let language_model = Arc::clone(&self.language_model);
 
-        let start = Instant::now();
-        let memory = request.build(model).await?;
-        let duration = start.elapsed();
-        info!("llm annotations took {:?}", duration);
-
-        let start = Instant::now();
+        let memory = request.build(language_model).await?;
         let vector = embedder.generate_embedding(memory.get_summary()).await?;
-        let duration = start.elapsed();
-        info!("embedding took {:?}", duration);
-
-        let start = Instant::now();
         vector_store.insert(&[&vector], &[&memory]).await?;
-        let duration = start.elapsed();
-        info!("vector insert took {:?}", duration);
-
         Ok(memory)
     }
 }
