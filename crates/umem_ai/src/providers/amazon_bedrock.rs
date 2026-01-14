@@ -1,14 +1,23 @@
 use crate::{
+    GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText, OpenAIProvider,
+    Ranking, RerankRequest, RerankResponse, Reranks, ReranksStructuredData, SerializationMode,
+    StructuredRanking, StructuredRerankRequest, StructuredRerankResponse,
     messages::{FilePart, UserModelMessage},
     response_generators::{
         self, GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
     },
-    utils, GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText,
-    OpenAIProvider,
+    utils,
 };
+use anyhow::Result;
 use async_trait::async_trait;
 use aws_config::{BehaviorVersion, Region};
+use aws_sdk_bedrockagentruntime::types::{
+    BedrockRerankingConfiguration, BedrockRerankingModelConfiguration, RerankDocument,
+    RerankDocumentType, RerankQuery, RerankQueryContentType, RerankSource, RerankSourceType,
+    RerankTextDocument, RerankingConfiguration,
+};
 use aws_sdk_bedrockruntime::{
+    error::BuildError,
     operation::converse::builders::ConverseFluentBuilder,
     types::{
         AnyToolChoice, ContentBlock, ConverseOutput, ImageBlock, InferenceConfiguration, Message,
@@ -17,12 +26,14 @@ use aws_sdk_bedrockruntime::{
 };
 use base64::Engine;
 use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
+use serde_json::Map;
 use std::sync::Arc;
 use thiserror::Error;
 
 pub struct AmazonBedrockProvider {
-    client: Arc<aws_sdk_bedrockruntime::Client>,
+    bedrockruntime_client: Arc<aws_sdk_bedrockruntime::Client>,
+    bedrockagentruntime_client: Arc<aws_sdk_bedrockagentruntime::Client>,
 }
 
 #[async_trait]
@@ -138,7 +149,7 @@ impl GeneratesObject for AmazonBedrockProvider {
             _ => {
                 return Err(ResponseGeneratorError::InvalidProviderResponse(
                     "was expecting the output to be a bedrock message".into(),
-                ))
+                ));
             }
         };
 
@@ -165,6 +176,262 @@ impl GeneratesObject for AmazonBedrockProvider {
     }
 }
 
+#[async_trait]
+impl Reranks for AmazonBedrockProvider {
+    async fn rerank(
+        &self,
+        request: RerankRequest,
+    ) -> Result<RerankResponse, ResponseGeneratorError> {
+        let inline_sources: Vec<RerankSource> = request
+            .documents
+            .iter()
+            .map(|document| {
+                RerankSource::builder()
+                    .inline_document_source(
+                        RerankDocument::builder()
+                            .r#type(RerankDocumentType::Text)
+                            .text_document(RerankTextDocument::builder().text(document).build())
+                            .build()?,
+                    )
+                    .r#type(RerankSourceType::Inline)
+                    .build()
+            })
+            .collect::<Result<_, BuildError>>()
+            .map_err(|e| {
+                ResponseGeneratorError::InvalidArgumentsProvided(format!(
+                    "Failed to build Bedrock-compat Rerank Sources from provided documents, Error: {}", e
+                ))
+            })?;
+
+        let response = self
+            .bedrockagentruntime_client
+            .rerank()
+            .queries(
+                RerankQuery::builder()
+                    .r#type(RerankQueryContentType::Text)
+                    .text_query(RerankTextDocument::builder().text(&request.query).build())
+                    .build()
+                    .map_err(|e| ResponseGeneratorError::InvalidArgumentsProvided(
+                        format!("Failed to build RerankQuery, Details: {}", e)
+                    ))?
+            )
+            .set_sources(
+                Some(inline_sources)
+            )
+            .reranking_configuration(
+                RerankingConfiguration::builder()
+                    .bedrock_reranking_configuration(
+                        BedrockRerankingConfiguration::builder()
+                            .model_configuration(
+                                BedrockRerankingModelConfiguration::builder()
+                                    .model_arn(&request.model.model_name)
+                                    .build()
+                                    .map_err(|e| {
+                                        ResponseGeneratorError::InvalidArgumentsProvided(
+                                            format!("Failed to build BedrockRerankingModelConfiguration, Details: {}", e)
+                                        )
+                                    })?,
+                            )
+                            .number_of_results(request.top_n as i32)
+                            .build(),
+                    )
+                    .build()
+                    .map_err(|e| {
+                        ResponseGeneratorError::InvalidArgumentsProvided(
+                            format!("Failed to build RerankingConfiguration, Details: {}", e)
+                        )
+                    })?,
+            )
+            .send()
+            .await
+            .map_err(|e| ResponseGeneratorError::BedrockAgentRerankCommandSendError(e.to_string()))?;
+
+        let results = response.results();
+
+        let (rankings, ranked_documents) = results.iter().try_fold(
+            (
+                Vec::with_capacity(results.len()),
+                Vec::with_capacity(results.len()),
+            ),
+            |(mut rankings, mut docs), result| {
+                let document = request.documents.get(result.index as usize).ok_or(
+                    ResponseGeneratorError::InvalidProviderResponse(
+                        "Bedrock Rerank API returned an invalid index".to_string(),
+                    ),
+                )?;
+                docs.push(document.clone());
+                rankings.push(Ranking {
+                    original_index: result.index as usize,
+                    score: result.relevance_score,
+                    document: document.clone(),
+                });
+                Ok::<_, ResponseGeneratorError>((rankings, docs))
+            },
+        )?;
+
+        Ok(RerankResponse {
+            rankings,
+            ranked_documents,
+            raw_fields: Map::with_capacity(0_usize),
+        })
+    }
+}
+
+#[async_trait]
+impl ReranksStructuredData for AmazonBedrockProvider {
+    async fn rerank_structured<T>(
+        &self,
+        request: StructuredRerankRequest<T>,
+    ) -> Result<StructuredRerankResponse<T>, ResponseGeneratorError>
+    where
+        T: Serialize + Clone + Send + Sync,
+    {
+        let inline_sources: Vec<RerankSource> = match request.serialization_mode {
+            SerializationMode::Json => {
+                let json_documents: Vec<aws_smithy_types::Document> = request
+                    .documents
+                    .iter()
+                    .map(|doc| {
+                        serde_json::to_value(doc)
+                            .map(utils::json_to_aws_smithy_document)
+                            .map_err(|e| {
+                                ResponseGeneratorError::StructuredRerankDocumentsSerializationError(
+                                    e.to_string(),
+                                )
+                            })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                json_documents
+                    .into_iter()
+                    .map(|document| {
+                        RerankSource::builder()
+                            .inline_document_source(
+                                RerankDocument::builder()
+                                    .r#type(RerankDocumentType::Json)
+                                    .json_document(document)
+                                    .build()?,
+                            )
+                            .r#type(RerankSourceType::Inline)
+                            .build()
+                    })
+                    .collect::<Result<_, BuildError>>()
+            }
+            SerializationMode::Yaml => {
+                let yaml_documents: Vec<String> = request
+                    .documents
+                    .iter()
+                    .map(|doc| {
+                        serde_saphyr::to_string(doc).map_err(|e| {
+                            ResponseGeneratorError::StructuredRerankDocumentsSerializationError(
+                                e.to_string(),
+                            )
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+
+                yaml_documents
+                    .iter()
+                    .map(|document| {
+                        RerankSource::builder()
+                            .inline_document_source(
+                                RerankDocument::builder()
+                                    .r#type(RerankDocumentType::Text)
+                                    .text_document(
+                                        RerankTextDocument::builder().text(document).build(),
+                                    )
+                                    .build()?,
+                            )
+                            .r#type(RerankSourceType::Inline)
+                            .build()
+                    })
+                    .collect::<Result<_, BuildError>>()
+            }
+        }
+        .map_err(|e| {
+            ResponseGeneratorError::InvalidArgumentsProvided(format!(
+                "Failed to build Bedrock-compat Rerank Sources from provided documents, Error: {}",
+                e
+            ))
+        })?;
+
+        let response = self
+            .bedrockagentruntime_client
+            .rerank()
+            .queries(
+                RerankQuery::builder()
+                    .r#type(RerankQueryContentType::Text)
+                    .text_query(RerankTextDocument::builder().text(&request.query).build())
+                    .build()
+                    .map_err(|e| {
+                        ResponseGeneratorError::InvalidArgumentsProvided(format!(
+                            "Failed to build RerankQuery, Details: {}",
+                            e
+                        ))
+                    })?,
+            )
+            .set_sources(Some(inline_sources))
+            .reranking_configuration(
+                RerankingConfiguration::builder()
+                    .bedrock_reranking_configuration(
+                        BedrockRerankingConfiguration::builder()
+                            .model_configuration(
+                                BedrockRerankingModelConfiguration::builder()
+                                    .model_arn(&request.model.model_name)
+                                    .build()
+                                    .map_err(|e| {
+                                        ResponseGeneratorError::InvalidArgumentsProvided(format!(
+                                            "Failed to build BedrockRerankingModelConfiguration, Details: {}",
+                                            e
+                                        ))
+                                    })?,
+                            )
+                            .number_of_results(request.top_n as i32)
+                            .build(),
+                    )
+                    .build()
+                    .map_err(|e| {
+                        ResponseGeneratorError::InvalidArgumentsProvided(format!(
+                            "Failed to build RerankingConfiguration, Details: {}",
+                            e
+                        ))
+                    })?,
+            )
+            .send()
+            .await
+            .map_err(|e| ResponseGeneratorError::BedrockAgentRerankCommandSendError(e.to_string()))?;
+
+        let results = response.results();
+
+        let (rankings, ranked_documents) = results.iter().try_fold(
+            (
+                Vec::with_capacity(results.len()),
+                Vec::with_capacity(results.len()),
+            ),
+            |(mut rankings, mut docs), result| {
+                let document = request.documents.get(result.index as usize).ok_or(
+                    ResponseGeneratorError::InvalidProviderResponse(
+                        "Bedrock Rerank API returned an invalid index".to_string(),
+                    ),
+                )?;
+                docs.push(document.clone());
+                rankings.push(StructuredRanking {
+                    original_index: result.index as usize,
+                    score: result.relevance_score,
+                    document: document.clone(),
+                });
+                Ok::<_, ResponseGeneratorError>((rankings, docs))
+            },
+        )?;
+
+        Ok(StructuredRerankResponse {
+            rankings,
+            ranked_documents,
+            raw_fields: Map::with_capacity(0_usize),
+        })
+    }
+}
+
 impl AmazonBedrockProvider {
     fn normalize_generate_object_request<
         T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned,
@@ -177,7 +444,7 @@ impl AmazonBedrockProvider {
         let output_schema_value = serde_json::to_value(&request.output_schema)?;
 
         Ok(self
-            .client
+            .bedrockruntime_client
             .converse()
             .model_id(request.model.model_name.clone())
             .system(aws_sdk_bedrockruntime::types::SystemContentBlock::Text(
@@ -214,7 +481,7 @@ impl AmazonBedrockProvider {
         let user_messages = Self::normalize_user_messages(&request.messages)?;
 
         Ok(self
-            .client
+            .bedrockruntime_client
             .converse()
             .model_id(request.model.model_name.clone())
             .system(aws_sdk_bedrockruntime::types::SystemContentBlock::Text(
@@ -302,6 +569,10 @@ impl AmazonBedrockProvider {
 
         Ok(user_message_content_blocks)
     }
+
+    fn builder() -> AmazonBedrockProviderBuilder {
+        AmazonBedrockProviderBuilder::new()
+    }
 }
 
 #[derive(Default)]
@@ -370,7 +641,10 @@ impl AmazonBedrockProviderBuilder {
             .await;
 
         Ok(AmazonBedrockProvider {
-            client: Arc::new(aws_sdk_bedrockruntime::Client::new(&sdk_config)),
+            bedrockruntime_client: Arc::new(aws_sdk_bedrockruntime::Client::new(&sdk_config)),
+            bedrockagentruntime_client: Arc::new(aws_sdk_bedrockagentruntime::Client::new(
+                &sdk_config,
+            )),
         })
     }
 }
@@ -378,8 +652,8 @@ impl AmazonBedrockProviderBuilder {
 #[cfg(test)]
 mod tests {
     use crate::{
-        generate_object, generate_text, AIProvider, GenerateObjectRequestBuilder,
-        GenerateTextRequestBuilder, LanguageModel,
+        AIProvider, GenerateObjectRequestBuilder, GenerateTextRequestBuilder, LanguageModel,
+        generate_object, generate_text,
     };
     use serde::Deserialize;
     use std::sync::Arc;

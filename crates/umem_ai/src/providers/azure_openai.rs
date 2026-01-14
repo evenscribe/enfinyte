@@ -1,8 +1,8 @@
 use crate::{
-    response_generators::{GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError},
     GeneratesText,
+    response_generators::{GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError},
 };
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use async_trait::async_trait;
 pub struct AzureOpenAIProvider {
     pub resource_name: Option<String>,

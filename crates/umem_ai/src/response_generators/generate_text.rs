@@ -1,8 +1,8 @@
+use crate::LanguageModel;
+use crate::ResponseGeneratorError;
 use crate::response_generators::messages::Message;
 use crate::utils;
 use crate::utils::is_retryable_error;
-use crate::LanguageModel;
-use crate::ResponseGeneratorError;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use reqwest::header::HeaderMap;
@@ -63,6 +63,12 @@ pub struct GenerateTextRequest {
     pub max_retries: usize,
     pub headers: HeaderMap,
     pub timeout: Duration,
+}
+
+impl GenerateTextRequest {
+    pub fn builder() -> GenerateTextRequestBuilder {
+        GenerateTextRequestBuilder::new()
+    }
 }
 
 #[derive(Debug, Error)]

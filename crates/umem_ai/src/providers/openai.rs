@@ -1,17 +1,17 @@
 use crate::{
-    reqwest_client,
+    GeneratesObject, GeneratesText, reqwest_client,
     response_generators::{
+        GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
         generate_object::{GenerateObjectRequest, GenerateObjectResponse},
         messages::{FilePart, Message, UserMessagePart, UserModelMessage},
-        GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
     },
-    utils, GeneratesObject, GeneratesText,
+    utils,
 };
 use async_trait::async_trait;
 use base64::Engine;
 use reqwest::header::HeaderMap;
 use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value};
 use typed_builder::TypedBuilder;
 
@@ -23,9 +23,7 @@ pub struct OpenAIProvider {
     #[builder(default = "https://api.openai.com/v1".into(), setter(transform = |value: impl Into<String>| value.into()))]
     pub base_url: String,
 
-    #[builder(default, setter(transform = |value: Vec<(String, String)>| 
-           utils::build_header_map(value.as_slice()).unwrap_or_default()
-    ))]
+    #[builder(default, setter(transform = |value: Vec<(String, String)>| utils::build_header_map(value.as_slice()).unwrap_or_default()))]
     pub default_headers: HeaderMap,
 
     #[builder(default)]
@@ -135,28 +133,28 @@ impl OpenAIProvider {
                             serde_json::json!({"type":"input_text","text":input_text})
                         }
                         UserMessagePart::Image(image_part) => match image_part {
-                            FilePart::Url(ref image_url, _) => {
+                            FilePart::Url(image_url, _) => {
                                 serde_json::json!({"type":"input_image","image_url":image_url})
                             }
-                            FilePart::Base64(ref b64,ref media_type) => {
+                            FilePart::Base64(b64, media_type) => {
                                 let media_type = media_type.clone().unwrap_or(mime::IMAGE_PNG);
                                 serde_json::json!({"type":"input_image","image_url":format!("data:{};base64,{}", media_type.to_string(), b64)})
                             }
-                            FilePart::Buffer(buf,ref media_type) => {
+                            FilePart::Buffer(buf, media_type) => {
                                 let buf_as_b64 = base64::engine::general_purpose::STANDARD.encode(buf);
                                 let media_type = media_type.clone().unwrap_or(mime::IMAGE_PNG);
                                 serde_json::json!({"type":"input_image","image_url":format!("data:{};base64,{}", media_type.to_string(), buf_as_b64)})
                             },
                         },
-                        UserMessagePart::File(file_part) => match file_part{
-                            FilePart::Url(ref image_url, _) => {
+                        UserMessagePart::File(file_part) => match file_part {
+                            FilePart::Url(image_url, _) => {
                                 serde_json::json!({"type":"input_file","file_url":image_url})
                             }
-                            FilePart::Base64(ref b64,ref media_type) => {
+                            FilePart::Base64(b64, media_type) => {
                                 let media_type = media_type.clone().unwrap_or(mime::IMAGE_PNG);
                                 serde_json::json!({"type":"input_file","file_url":format!("data:{};base64,{}", media_type.to_string(), b64)})
                             }
-                            FilePart::Buffer(buf,ref media_type) => {
+                            FilePart::Buffer(buf, media_type) => {
                                 let buf_as_b64 = base64::engine::general_purpose::STANDARD.encode(buf);
                                 let media_type = media_type.clone().unwrap_or(mime::IMAGE_PNG);
                                 serde_json::json!({"type":"input_file","file_url":format!("data:{};base64,{}", media_type.to_string(), buf_as_b64)})
@@ -264,8 +262,8 @@ impl GeneratesObject for OpenAIProvider {
             })
             .unwrap_or_default();
 
-        let output: T =
-            serde_json::from_str(&output_text).map_err(|e| ResponseGeneratorError::Deserialization(e, output_text))?;
+        let output: T = serde_json::from_str(&output_text)
+            .map_err(|e| ResponseGeneratorError::Deserialization(e, output_text))?;
 
         Ok(GenerateObjectResponse { output })
     }
@@ -347,11 +345,12 @@ mod tests {
 
     use super::*;
     use crate::{
-        response_generators::{
-            generate_object::{generate_object, GenerateObjectRequestBuilder},
-            generate_text, GenerateTextRequestBuilder,
-        },
         AIProvider, LanguageModel,
+        response_generators::{
+            GenerateTextRequestBuilder,
+            generate_object::{GenerateObjectRequestBuilder, generate_object},
+            generate_text,
+        },
     };
     use std::sync::Arc;
 
@@ -361,7 +360,7 @@ mod tests {
             OpenAIProvider::builder()
                 .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
-                .build()
+                .build(),
         ));
 
         #[derive(Clone, JsonSchema, Serialize, Deserialize, Debug)]
@@ -395,7 +394,7 @@ mod tests {
             OpenAIProvider::builder()
                 .api_key("")
                 .base_url("https://openrouter.ai/api/v1")
-                .build()
+                .build(),
         ));
 
         let model = Arc::new(LanguageModel {

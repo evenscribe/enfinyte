@@ -20,7 +20,8 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
         ResponseGeneratorError::Deserialization(error, response) => {
             tracing::warn!(
                 "Serialization error, AI Might have built a bad JSON output: \n Error: {} \n Received Response: {}",
-                error,response
+                error,
+                response
             );
             true
         }
@@ -51,6 +52,18 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
                 "AWS Bedrock Converse SDK error occurred when communicating with AI provider: {}",
                 sdk_error
             );
+            true
+        }
+        ResponseGeneratorError::StructuredRerankDocumentsSerializationError(e) => {
+            tracing::error!("Structured rerank documents serialization error: {}", e);
+            false
+        }
+        ResponseGeneratorError::InvalidArgumentsProvided(e) => {
+            tracing::error!("Invalid arguments provided: {}", e);
+            false
+        }
+        ResponseGeneratorError::BedrockAgentRerankCommandSendError(e) => {
+            tracing::error!("Bedrock agent rerank command send error: {}", e);
             true
         }
     }
