@@ -15,7 +15,7 @@ pub enum CloudflareError {
 
 #[derive(Serialize)]
 struct EmbeddingRequest<'em> {
-    text: Vec<&'em str>,
+    text: &'em [&'em str],
 }
 
 #[derive(Deserialize)]
@@ -56,7 +56,7 @@ impl EmbedderBase for Cloudflare {
             "https://api.cloudflare.com/client/v4/accounts/{}/ai/run/{}",
             self.account_id, self.model
         );
-        let request_body = EmbeddingRequest { text: vec![text] };
+        let request_body = EmbeddingRequest { text: &[text] };
         let response = client
             .post(&url)
             .header("Authorization", format!("Bearer {}", self.api_token))
@@ -76,7 +76,7 @@ impl EmbedderBase for Cloudflare {
         Ok(std::mem::take(&mut embedding_response.result.data[0]))
     }
 
-    async fn generate_embeddings(&self, texts: Vec<&str>) -> crate::Result<Vec<Vec<f32>>> {
+    async fn generate_embeddings(&self, texts: &[&str]) -> crate::Result<Vec<Vec<f32>>> {
         if texts.is_empty() || texts.iter().any(|text| text.trim().is_empty()) {
             Err(CloudflareError::EmptyText)?;
         }
