@@ -1,9 +1,11 @@
+use std::sync::Arc;
+
 use super::{MemoryController, MemoryControllerError};
 use thiserror::Error;
 use typed_builder::TypedBuilder;
 use umem_core::Memory;
 use umem_embeddings::EmbedderError;
-use umem_vector_store::{VectorStore, VectorStoreError};
+use umem_vector_store::VectorStoreError;
 
 #[derive(Debug, Error)]
 pub enum UpdateMemoryRequestError {
@@ -48,12 +50,12 @@ impl UpdateMemoryRequest {
 }
 
 impl MemoryController {
-    pub async fn update(request: UpdateMemoryRequest) -> Result<(), MemoryControllerError> {
-        Ok(Self::update_impl(request).await?)
+    pub async fn update(&self, request: UpdateMemoryRequest) -> Result<(), MemoryControllerError> {
+        Ok(self.update_impl(request).await?)
     }
 
-    async fn update_impl(request: UpdateMemoryRequest) -> Result<(), UpdateMemoryError> {
-        let vector_store = VectorStore::get_store().await?;
+    async fn update_impl(&self, request: UpdateMemoryRequest) -> Result<(), UpdateMemoryError> {
+        let vector_store = Arc::clone(&self.vector_store);
 
         request.validate()?;
 

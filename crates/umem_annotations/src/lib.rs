@@ -1,7 +1,11 @@
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use thiserror::Error;
-use umem_core::{MemoryContent, MemoryKind, MemorySignals, Provenance};
+use umem_core::{
+    MemoryContent,
+    MemoryKind,
+    // MemorySignals, Provenance
+};
 
 use umem_ai::{
     GenerateObjectRequestBuilder, GenerateObjectRequestBuilderError,
@@ -29,7 +33,6 @@ You are a memory annotation system. Your task is to analyze a chat session betwe
 A conversation transcript containing user messages and agent responses. Focus on extracting what the user learned, decided, asked about, or expressed preferences for—not the back-and-forth dialogue itself.
 
 ## Output
-Produce a JSON object with the following structure:
 
 ### content.summary
 Extract the key points from the conversation as a concise, information-dense summary. Requirements:

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use thiserror::Error;
 
 mod create_memory;
@@ -12,6 +14,10 @@ pub use delete_memory::*;
 pub use get_memory::*;
 pub use list_memory::*;
 pub use search_memory::*;
+use umem_ai::LanguageModel;
+use umem_embeddings::EmbedderBase;
+use umem_rerank::RerankerBase;
+use umem_vector_store::VectorStoreBase;
 pub use update_memory::*;
 
 #[derive(Debug, Error)]
@@ -35,5 +41,9 @@ pub enum MemoryControllerError {
     SearchMemoryError(#[from] SearchMemoryError),
 }
 
-#[derive(Debug, Default)]
-pub struct MemoryController;
+pub struct MemoryController {
+    pub vector_store: Arc<dyn VectorStoreBase + Send + Sync>,
+    pub embedder: Arc<dyn EmbedderBase + Send + Sync>,
+    pub reranker: Arc<dyn RerankerBase + Send + Sync>,
+    pub language_model: Arc<LanguageModel>,
+}

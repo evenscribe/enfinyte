@@ -9,9 +9,9 @@ members = ["crates/*"]
 
 [workspace.dependencies]
 umem_core = {path = "crates/umem_core"}
+umem_memory_machine = {path = "crates/umem_memory_machine"}
 umem_refine = {path = "crates/umem_refine"}
 umem_rerank = {path = "crates/umem_rerank"}
-umem_allocator = {path = "crates/umem_allocator"}
 umem_vector_store = {path = "crates/umem_vector_store"}
 umem_config = {path = "crates/umem_config"}
 umem_embeddings = {path = "crates/umem_embeddings"}
@@ -44,15 +44,21 @@ thiserror = "2.0.17"
 typed-builder = "0.23.2"
 schemars = "1.1.0"
 futures = "0.3.31"
-num_cpus = "1.17.0"
-oxc_allocator = "0.105.0"
+rayon = "1.11.0"
+yaml-rust2 = "0.11.0"
+serde-saphyr = "0.0.12"
 
 [dependencies]
 umem_grpc_server = { workspace = true }
 umem_mcp = { workspace = true }
 thiserror = { workspace = true }
+typed-builder = { workspace = true }
 umem_config = { workspace = true }
 umem_controller = { workspace = true }
+umem_rerank = { workspace = true }
+umem_ai = { workspace = true }
+umem_embeddings = { workspace = true }
+umem_vector_store = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }
 tracing-subscriber = { workspace = true }
@@ -61,5 +67,5 @@ tracing-appender = { workspace = true }
 dirs = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-oxc_allocator = { workspace = true }
+rayon = { workspace = true }
 dotenv = { version = "0.15.0" }

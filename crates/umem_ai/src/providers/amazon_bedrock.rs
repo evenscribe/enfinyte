@@ -1,10 +1,10 @@
 use crate::{
+    GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText, OpenAIProvider,
     messages::{FilePart, UserModelMessage},
     response_generators::{
         self, GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
     },
-    utils, GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText,
-    OpenAIProvider,
+    utils,
 };
 use async_trait::async_trait;
 use aws_config::{BehaviorVersion, Region};
@@ -14,7 +14,7 @@ use aws_sdk_bedrockruntime::{
 };
 use base64::Engine;
 use schemars::JsonSchema;
-use serde::{de::DeserializeOwned, Serialize};
+use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -160,7 +160,7 @@ impl AmazonBedrockProvider {
         let mut system = OpenAIProvider::normalize_system_message(&request.messages);
         system.push_str(
             r#"
-            **Critical Instruction**: ALWAYS and ONLY respond with a JSON object that conforms EXACTLY to the provided JSON Schema (enclosed in `<OutputSchema>`).
+            **Critical Instruction**: ALWAYS and ONLY respond with a JSON string that conforms EXACTLY to the provided JSON Schema (enclosed in `<OutputSchema>`).
         "#,
         );
         let mut user_messages = Self::normalize_user_messages(&request.messages).unwrap();
@@ -357,8 +357,8 @@ impl AmazonBedrockProviderBuilder {
 #[cfg(test)]
 mod tests {
     use crate::{
-        generate_object, generate_text, AIProvider, GenerateObjectRequestBuilder,
-        GenerateTextRequestBuilder, LanguageModel,
+        AIProvider, GenerateObjectRequestBuilder, GenerateTextRequestBuilder, LanguageModel,
+        generate_object, generate_text,
     };
     use serde::Deserialize;
     use std::sync::Arc;
@@ -369,9 +369,9 @@ mod tests {
     async fn test_bedrock_generate_object() {
         let provider = Arc::new(AIProvider::from(
             AmazonBedrockProviderBuilder::default()
-                .region("REGION")
-                .access_key_id("ACESS_KEY_ID")
-                .secret_access_key("SECRET_ACCESS_KEY")
+                .region("us-west-2")
+                .access_key_id("test_access_key_id")
+                .secret_access_key("test_secret_access_key")
                 .build()
                 .await
                 .unwrap(),

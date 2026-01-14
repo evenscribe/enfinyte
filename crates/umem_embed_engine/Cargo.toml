@@ -25,4 +25,4 @@ serde.workspace = true
 serde_json.workspace = true
 text-splitter = {version= "0.28.0", features= ["tiktoken-rs"]}
 tiktoken-rs = "0.7.0"
-yaml-rust2 = "0.10.4"
+yaml-rust2 = { workspace = true }

@@ -1,14 +1,19 @@
 use std::{
     fs::File,
     io::{BufRead, BufReader},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use anyhow::Result;
 use dotenv::dotenv;
-use serde::Deserialize;
 use tracing::info;
 use umem::tracing_conf;
 use umem_controller::{CreateMemoryRequest, MemoryController};
+
+const CONCURRENCY_LIMIT: usize = 10;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,46 +21,46 @@ async fn main() -> Result<()> {
     let _guard = tracing_conf::init_tracing()?;
 
     let file = File::open("data_chatgpt/conversations_general.jsonl")?;
-    let mut reader = BufReader::new(file);
-    let mut buf = Vec::new();
+    let reader = BufReader::new(file);
+    let lines: Vec<String> = reader.lines().collect::<std::io::Result<Vec<_>>>()?;
 
-    #[derive(Debug, Deserialize)]
-    struct Chat {
-        title: String,
+    let total = lines.len();
+    info!("loaded {total} chat records, processing with {CONCURRENCY_LIMIT} concurrent tasks");
+
+    let semaphore = Arc::new(tokio::sync::Semaphore::new(CONCURRENCY_LIMIT));
+    let completed = Arc::new(AtomicUsize::new(0));
+
+    let mut tasks = Vec::new();
+
+    for raw_chats in lines {
+        let sem = semaphore.clone();
+        let completed = completed.clone();
+
+        let task = tokio::spawn(async move {
+            let _permit = sem.acquire().await?;
+
+            let _ = MemoryController::create(
+                CreateMemoryRequest::builder()
+                    .user_id(Some("harry".to_string()))
+                    .raw_content(raw_chats)
+                    .build(),
+                None,
+            )
+            .await;
+
+            let count = completed.fetch_add(1, Ordering::SeqCst) + 1;
+            info!("Progress: {count}/{total} completed");
+
+            Ok::<(), anyhow::Error>(())
+        });
+
+        tasks.push(task);
     }
 
-    let mut count = 1;
-
-    loop {
-        buf.clear();
-        let bytes = reader.read_until(b'\n', &mut buf)?;
-        if bytes == 0 {
-            break;
-        }
-
-        let chat: Chat = match serde_json::from_slice(&buf) {
-            Ok(c) => c,
-            Err(e) => {
-                eprintln!("Bad JSON: {}", e);
-                continue;
-            }
-        };
-
-        info!("working on chat {count} : {} ", chat.title);
-
-        let raw_chats = std::str::from_utf8(&buf).unwrap();
-
-        let _ = MemoryController::create(
-            CreateMemoryRequest::builder()
-                .user_id(Some("harry".to_string()))
-                .raw_content(raw_chats.to_owned())
-                .build(),
-            None,
-        )
-        .await;
-
-        count += 1;
+    for task in tasks {
+        task.await??;
     }
 
+    info!("all {total} chat records processed successfully");
     Ok(())
 }

@@ -1,7 +1,9 @@
 mod memory_v1;
 
+pub const FILE_DESCRIPTOR_SET: &[u8] = include_bytes!("./memory_service_descriptor.bin");
+
 mod generated {
-    tonic::include_proto!("memory_v1");
+    include!("./memory_v1.rs");
 }
 
 pub use generated::*;
