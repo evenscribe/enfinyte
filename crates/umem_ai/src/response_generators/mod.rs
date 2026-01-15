@@ -10,10 +10,16 @@ use thiserror::Error;
 pub enum ResponseGeneratorError {
     #[error(transparent)]
     Http(#[from] reqwest::Error),
-    #[error(transparent)]
-    Serialization(#[from] serde_json::Error),
-    #[error(transparent)]
-    Transient(#[from] anyhow::Error),
+    #[error("deserialization error, Details: {1}, Response: {0}")]
+    Deserialization(serde_json::Error, String),
     #[error(transparent)]
     TimeoutError(#[from] tokio::time::error::Elapsed),
+    #[error("Bedrock Converse API error, Details: {0}")]
+    BedrockConverseError(String),
+    #[error("empty response from AI provider")]
+    EmptyProviderResponse,
+    #[error("invalid response from AI provider, Details: {0}")]
+    InvalidProviderResponse(String),
+    #[error(transparent)]
+    Transient(#[from] anyhow::Error),
 }
