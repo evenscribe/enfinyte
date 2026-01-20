@@ -51,7 +51,7 @@ impl Reranks for CohereProvider {
                 "model": &request.model.model_name,
                 "query": &request.query,
                 "documents": &request.documents,
-                "top_n": request.top_n,
+                "top_n": request.top_k,
             }))
             .send()
             .await?

@@ -38,7 +38,7 @@ impl LanguageModel {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct RerankingModel {
     pub provider: Arc<AIProvider>,
     pub model_name: String,
@@ -57,6 +57,7 @@ impl RerankingModel {
     }
 }
 
+#[derive(Debug)]
 pub enum AIProvider {
     OpenAI(OpenAIProvider),
     AzureOpenAI(AzureOpenAIProvider),

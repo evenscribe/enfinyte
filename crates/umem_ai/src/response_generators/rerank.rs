@@ -40,7 +40,7 @@ pub async fn rerank(request: RerankRequest) -> Result<RerankResponse, ResponseGe
 pub struct RerankRequest {
     pub query: String,
     pub documents: Vec<String>,
-    pub top_n: usize,
+    pub top_k: usize,
     pub timeout: Duration,
     pub max_retries: usize,
     pub model: Arc<RerankingModel>,
@@ -49,7 +49,7 @@ pub struct RerankRequest {
 impl RerankRequest {
     pub fn builder() -> RerankRequestBuilder {
         RerankRequestBuilder {
-            top_n: 5,
+            top_k: 5,
             ..Default::default()
         }
     }
@@ -58,7 +58,7 @@ impl RerankRequest {
 pub struct RerankRequestBuilder {
     query: Option<String>,
     documents: Vec<String>,
-    top_n: usize,
+    top_k: usize,
     timeout: Duration,
     max_retries: usize,
     model: Option<Arc<RerankingModel>>,
@@ -69,7 +69,7 @@ impl Default for RerankRequestBuilder {
         Self {
             query: None,
             documents: vec![],
-            top_n: 5,
+            top_k: 5,
             timeout: Duration::from_secs(30),
             max_retries: 3,
             model: None,
@@ -108,8 +108,8 @@ impl RerankRequestBuilder {
         self
     }
 
-    pub fn top_k(mut self, top_n: usize) -> Self {
-        self.top_n = top_n;
+    pub fn top_k(mut self, top_k: usize) -> Self {
+        self.top_k = top_k;
         self
     }
 
@@ -136,7 +136,7 @@ impl RerankRequestBuilder {
         Ok(RerankRequest {
             query: self.query.ok_or(RerankRequestBuilderError::MissingQuery)?,
             documents: self.documents,
-            top_n: self.top_n,
+            top_k: self.top_k,
             timeout: self.timeout,
             max_retries: self.max_retries,
             model: Arc::clone(&self.model.ok_or(RerankRequestBuilderError::MissingModel)?),
@@ -144,12 +144,14 @@ impl RerankRequestBuilder {
     }
 }
 
+#[derive(Debug)]
 pub struct RerankResponse {
     pub rankings: Vec<Ranking>,
     pub ranked_documents: Vec<String>,
     pub raw_fields: Map<String, Value>,
 }
 
+#[derive(Debug)]
 pub struct Ranking {
     pub original_index: usize,
     pub score: f32,
