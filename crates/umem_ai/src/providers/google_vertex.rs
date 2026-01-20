@@ -1,5 +1,6 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
+#[derive(Clone, Debug)]
 pub struct GoogleVertexAIProvider {
     pub project: String,
     pub location: String,
@@ -7,6 +8,7 @@ pub struct GoogleVertexAIProvider {
     pub credentials: GoogleCredentials,
 }
 
+#[derive(Clone, Debug)]
 pub struct GoogleCredentials {
     client_email: String,
     private_key: String,
