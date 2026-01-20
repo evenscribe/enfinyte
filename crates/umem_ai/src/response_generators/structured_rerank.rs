@@ -60,7 +60,7 @@ where
         .await
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct StructuredRerankRequest<T>
 where
     T: Serialize + Clone,
@@ -202,6 +202,7 @@ where
     }
 }
 
+#[derive(Clone, Debug)]
 pub struct StructuredRerankResponse<T>
 where
     T: Serialize + Clone,
@@ -211,6 +212,7 @@ where
     pub raw_fields: Map<String, Value>,
 }
 
+#[derive(Clone, Debug)]
 pub struct StructuredRanking<T>
 where
     T: Serialize + Clone,

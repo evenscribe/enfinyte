@@ -1,5 +1,6 @@
 use anyhow::{Result, bail};
 
+#[derive(Clone, Debug)]
 pub struct XAIProvider {
     pub api_key: String,
     pub base_url: String,

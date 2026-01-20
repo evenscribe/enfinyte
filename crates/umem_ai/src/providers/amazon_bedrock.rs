@@ -14,7 +14,7 @@ use aws_config::{BehaviorVersion, Region};
 use aws_sdk_bedrockagentruntime::types::{
     BedrockRerankingConfiguration, BedrockRerankingModelConfiguration, RerankDocument,
     RerankDocumentType, RerankQuery, RerankQueryContentType, RerankSource, RerankSourceType,
-    RerankTextDocument, RerankingConfiguration,
+    RerankTextDocument, RerankingConfiguration, RerankingConfigurationType,
 };
 use aws_sdk_bedrockruntime::{
     error::BuildError,
@@ -31,7 +31,9 @@ use serde_json::Map;
 use std::sync::Arc;
 use thiserror::Error;
 
+#[derive(Clone, Debug)]
 pub struct AmazonBedrockProvider {
+    region: Region,
     bedrockruntime_client: Arc<aws_sdk_bedrockruntime::Client>,
     bedrockagentruntime_client: Arc<aws_sdk_bedrockagentruntime::Client>,
 }
@@ -220,11 +222,12 @@ impl Reranks for AmazonBedrockProvider {
             )
             .reranking_configuration(
                 RerankingConfiguration::builder()
+                    .r#type(RerankingConfigurationType::BedrockRerankingModel)
                     .bedrock_reranking_configuration(
                         BedrockRerankingConfiguration::builder()
                             .model_configuration(
                                 BedrockRerankingModelConfiguration::builder()
-                                    .model_arn(&request.model.model_name)
+                                    .model_arn(format!("arn:aws:bedrock:{}::foundation-model/{}",&self.region, &request.model.model_name))
                                     .build()
                                     .map_err(|e| {
                                         ResponseGeneratorError::InvalidArgumentsProvided(
@@ -232,7 +235,7 @@ impl Reranks for AmazonBedrockProvider {
                                         )
                                     })?,
                             )
-                            .number_of_results(request.top_n as i32)
+                            .number_of_results(request.top_k as i32)
                             .build(),
                     )
                     .build()
@@ -373,11 +376,15 @@ impl ReranksStructuredData for AmazonBedrockProvider {
             .set_sources(Some(inline_sources))
             .reranking_configuration(
                 RerankingConfiguration::builder()
+                    .r#type(RerankingConfigurationType::BedrockRerankingModel)
                     .bedrock_reranking_configuration(
                         BedrockRerankingConfiguration::builder()
                             .model_configuration(
                                 BedrockRerankingModelConfiguration::builder()
-                                    .model_arn(&request.model.model_name)
+                                    .model_arn(format!(
+                                        "arn:aws:bedrock:{}::foundation-model/{}",
+                                        &self.region, &request.model.model_name
+                                    ))
                                     .build()
                                     .map_err(|e| {
                                         ResponseGeneratorError::InvalidArgumentsProvided(format!(
@@ -622,7 +629,7 @@ impl AmazonBedrockProviderBuilder {
 
     pub async fn build(self) -> Result<AmazonBedrockProvider, AmazonBedrockProviderBuilderError> {
         let sdk_config = aws_config::defaults(BehaviorVersion::latest())
-            .region(self.region)
+            .region(self.region.clone())
             .credentials_provider(
                 aws_sdk_bedrockruntime::config::Credentials::builder()
                     .access_key_id(
@@ -641,6 +648,9 @@ impl AmazonBedrockProviderBuilder {
             .await;
 
         Ok(AmazonBedrockProvider {
+            region: self
+                .region
+                .ok_or(AmazonBedrockProviderBuilderError::MissingRegion)?,
             bedrockruntime_client: Arc::new(aws_sdk_bedrockruntime::Client::new(&sdk_config)),
             bedrockagentruntime_client: Arc::new(aws_sdk_bedrockagentruntime::Client::new(
                 &sdk_config,
@@ -651,14 +661,14 @@ impl AmazonBedrockProviderBuilder {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
         AIProvider, GenerateObjectRequestBuilder, GenerateTextRequestBuilder, LanguageModel,
-        generate_object, generate_text,
+        RerankingModel, SerializationFormat, generate_object, generate_text, rerank,
+        structured_rerank,
     };
     use serde::Deserialize;
     use std::sync::Arc;
-
-    use super::*;
 
     #[tokio::test]
     async fn test_bedrock_generate_object() {
@@ -726,5 +736,157 @@ mod tests {
         let generate_text_response = generate_text(request).await.unwrap();
 
         dbg!(&generate_text_response);
+    }
+
+    #[tokio::test]
+    async fn test_rerank() {
+        let provider = Arc::new(AIProvider::from(
+            AmazonBedrockProviderBuilder::default()
+                .region("REGION")
+                .access_key_id("ACESS_KEY_ID")
+                .secret_access_key("SECRET_ACCESS_KEY")
+                .build()
+                .await
+                .unwrap(),
+        ));
+
+        let model = Arc::new(RerankingModel {
+            provider,
+            model_name: "cohere.rerank-v3-5:0".to_string(),
+        });
+
+        let request = RerankRequest::builder()
+            .model(model)
+            .document("Stock markets reached record highs today as investors reacted positively to economic data.")
+            .document("The local sports team won their championship game in a thrilling overtime victory.")
+            .document("A new cafe opened downtown, offering a variety of artisanal coffees and pastries.")
+            .document("Scientists have discovered a new species of bird in the remote rainforests of the Amazon.")
+            .document("The city council has approved a new plan to improve public transportation and reduce traffic congestion.")
+            .document("Researchers develop more efficient solar panel technology.")
+            .query("environmental sustainability initiatives")
+            .top_k(6)
+            .build()
+            .unwrap();
+
+        let rerank_response = rerank(request).await.unwrap();
+        dbg!(&rerank_response);
+    }
+
+    #[tokio::test]
+    async fn test_structured_rerank() {
+        let provider = Arc::new(AIProvider::from(
+            AmazonBedrockProviderBuilder::default()
+                .region("REGION")
+                .access_key_id("ACESS_KEY_ID")
+                .secret_access_key("SECRET_ACCESS_KEY")
+                .build()
+                .await
+                .unwrap(),
+        ));
+
+        let model = Arc::new(RerankingModel {
+            provider,
+            model_name: "cohere.rerank-v3-5:0".to_string(),
+        });
+
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct Document {
+            id: String,
+            content: String,
+            metadata: DocumentMetadata,
+        }
+
+        #[derive(Debug, Clone, Serialize, Deserialize)]
+        struct DocumentMetadata {
+            category: String,
+            author: Option<String>,
+            timestamp: Option<String>,
+        }
+
+        let request = StructuredRerankRequest::builder()
+            .model(model)
+            .serialization_format(SerializationFormat::Compact)
+            .serialization_mode(SerializationMode::Json)
+            .documents(vec![
+            Document {
+                id: "doc_1".to_string(),
+                content: "Python is a high-level programming language known for its simplicity and readability.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Programming Languages".to_string(),
+                    author: Some("Tech Writer".to_string()),
+                    timestamp: Some("2024-01-15".to_string()),
+                },
+            },
+            Document {
+                id: "doc_2".to_string(),
+                content: "JavaScript is primarily used for web development and runs in browsers.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Programming Languages".to_string(),
+                    author: Some("Tech Writer".to_string()),
+                    timestamp: Some("2024-01-16".to_string()),
+                },
+            },
+            Document {
+                id: "doc_3".to_string(),
+                content: "Machine learning models require large datasets for training.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Machine Learning".to_string(),
+                    author: Some("Data Scientist".to_string()),
+                    timestamp: Some("2024-01-17".to_string()),
+                },
+            },
+            Document {
+                id: "doc_4".to_string(),
+                content: "Python's pandas library is excellent for data manipulation and analysis.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Data Analysis".to_string(),
+                    author: Some("Data Analyst".to_string()),
+                    timestamp: Some("2024-01-18".to_string()),
+                },
+            },
+            Document {
+                id: "doc_5".to_string(),
+                content: "The React framework is built on top of JavaScript for building user interfaces.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Web Development".to_string(),
+                    author: Some("Frontend Dev".to_string()),
+                    timestamp: Some("2024-01-19".to_string()),
+                },
+            },
+            Document {
+                id: "doc_6".to_string(),
+                content: "Deep learning is a subset of machine learning that uses neural networks.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Machine Learning".to_string(),
+                    author: Some("ML Engineer".to_string()),
+                    timestamp: Some("2024-01-20".to_string()),
+                },
+            },
+            Document {
+                id: "doc_7".to_string(),
+                content: "Python supports multiple programming paradigms including object-oriented and functional programming.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Programming Languages".to_string(),
+                    author: Some("Tech Writer".to_string()),
+                    timestamp: Some("2024-01-21".to_string()),
+                },
+            },
+            Document {
+                id: "doc_8".to_string(),
+                content: "Node.js allows JavaScript to run on the server side.".to_string(),
+                metadata: DocumentMetadata {
+                    category: "Backend Development".to_string(),
+                    author: Some("Backend Dev".to_string()),
+                    timestamp: Some("2024-01-22".to_string()),
+                },
+            },
+        ])
+            .query("How to use Python for data analysis?")
+            .top_k(6)
+            .build()
+            .unwrap();
+
+        let rerank_response = structured_rerank(request).await.unwrap();
+        dbg!(&rerank_response);
     }
 }

@@ -4,6 +4,8 @@ use crate::{
 };
 use anyhow::{Result, bail};
 use async_trait::async_trait;
+
+#[derive(Clone, Debug)]
 pub struct AzureOpenAIProvider {
     pub resource_name: Option<String>,
     pub api_key: String,
