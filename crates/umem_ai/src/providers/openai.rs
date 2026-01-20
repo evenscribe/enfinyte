@@ -23,7 +23,9 @@ pub struct OpenAIProvider {
     #[builder(default = "https://api.openai.com/v1".into(), setter(transform = |value: impl Into<String>| value.into()))]
     pub base_url: String,
 
-    #[builder(default, setter(transform = |value: Vec<(String, String)>| utils::build_header_map(value.as_slice()).unwrap_or_default()))]
+    #[builder(default, setter(transform = |value: Vec<(String, String)>|
+           utils::build_header_map(value.as_slice()).unwrap_or_default()
+    ))]
     pub default_headers: HeaderMap,
 
     #[builder(default)]

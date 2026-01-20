@@ -34,9 +34,10 @@ pub struct GetMemoriesByIdRequest {
     pub memory_id: String,
 }
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct McpService {
     tool_router: ToolRouter<Self>,
+    memory_controller: MemoryController,
 }
 
 fn extract_user_id(parts: Parts) -> String {
@@ -50,7 +51,7 @@ fn extract_user_id(parts: Parts) -> String {
 }
 
 impl McpService {
-    pub fn new() -> Self {
+    pub fn new(memory_controller: MemoryController) -> Self {
         debug!("Creating new McpService instance");
         let tool_router = Self::tool_router();
         let tools = tool_router.list_all();
@@ -58,7 +59,10 @@ impl McpService {
             "Registered tools: {:?}",
             tools.iter().map(|t| &t.name).collect::<Vec<_>>()
         );
-        Self { tool_router }
+        Self {
+            tool_router,
+            memory_controller,
+        }
     }
 }
 
@@ -83,15 +87,17 @@ impl McpService {
             ));
         }
 
-        let memory = MemoryController::create(
-            CreateMemoryRequest::builder()
-                .user_id(Some(user_id))
-                .raw_content(content)
-                .build(),
-            None,
-        )
-        .await
-        .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
+        let memory = self
+            .memory_controller
+            .create(
+                CreateMemoryRequest::builder()
+                    .user_id(Some(user_id))
+                    .raw_content(content)
+                    .build(),
+                None,
+            )
+            .await
+            .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
         Ok(CallToolResult::success(vec![Annotated::new(
             RawContent::Text(RawTextContent {
@@ -110,7 +116,9 @@ impl McpService {
         Extension(parts): Extension<Parts>,
     ) -> Result<CallToolResult, McpError> {
         let user_id = extract_user_id(parts);
-        let memory_bulk: String = MemoryController::list_for_user(user_id)
+        let memory_bulk: String = self
+            .memory_controller
+            .list_for_user(user_id)
             .await
             .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?
             .iter()
@@ -132,7 +140,9 @@ impl McpService {
         &self,
         Parameters(GetMemoriesByIdRequest { memory_id }): Parameters<GetMemoriesByIdRequest>,
     ) -> Result<CallToolResult, McpError> {
-        let memory = MemoryController::get(memory_id)
+        let memory = self
+            .memory_controller
+            .get(memory_id)
             .await
             .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?;
 
@@ -153,7 +163,9 @@ impl McpService {
         Parameters(GetMemoriesByQueryRequest { query }): Parameters<GetMemoriesByQueryRequest>,
     ) -> Result<CallToolResult, McpError> {
         let user_id = extract_user_id(parts);
-        let memory_bulk: String = MemoryController::search_for_user(user_id, query)
+        let memory_bulk: String = self
+            .memory_controller
+            .search_for_user(user_id, query, None)
             .await
             .map_err(|e| McpError::new(ErrorCode::INTERNAL_ERROR, e.to_string(), None))?
             .iter()

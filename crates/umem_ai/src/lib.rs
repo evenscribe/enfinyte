@@ -12,6 +12,8 @@ pub use response_generators::*;
 use schemars::JsonSchema;
 use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
+use thiserror::Error;
+use tokio::sync::OnceCell;
 use umem_config::CONFIG;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
@@ -20,10 +22,18 @@ lazy_static! {
     static ref reqwest_client: reqwest::Client = reqwest::Client::new();
 }
 
+#[derive(Error, Debug)]
+pub enum LanguageModelError {
+    #[error("ai provider failed with : {0}")]
+    AIProviderError(#[from] AIProviderError),
+}
+
 pub struct LanguageModel {
     pub provider: Arc<AIProvider>,
     pub model_name: String,
 }
+
+static LANGUAGE_MODEL: OnceCell<Arc<LanguageModel>> = OnceCell::const_new();
 
 impl LanguageModel {
     fn new(provider: Arc<AIProvider>, model_name: String) -> Self {
@@ -33,8 +43,46 @@ impl LanguageModel {
         }
     }
 
-    pub fn get_model() -> Arc<LanguageModel> {
-        Arc::clone(&LANGUAGE_MODEL)
+    pub async fn get_model() -> Result<Arc<LanguageModel>, LanguageModelError> {
+        LANGUAGE_MODEL
+            .get_or_try_init(|| async {
+                match CONFIG.language_model.provider.clone() {
+                    umem_config::Provider::OpenAI(open_ai) => {
+                        let openai_provider = OpenAIProvider::builder()
+                            .api_key(open_ai.api_key)
+                            .base_url(open_ai.base_url)
+                            .default_headers(open_ai.default_headers.unwrap_or_default())
+                            .project(open_ai.project)
+                            .organization(open_ai.organization)
+                            .build();
+
+                        let provider = Arc::new(AIProvider::from(openai_provider));
+
+                        Ok(Arc::new(LanguageModel {
+                            provider,
+                            model_name: CONFIG.language_model.model.clone(),
+                        }))
+                    }
+                    umem_config::Provider::AmazonBedrock(config) => {
+                        let provider = AmazonBedrockProviderBuilder::default()
+                            .region(config.region)
+                            .access_key_id(config.key_id)
+                            .secret_access_key(config.access_key)
+                            .build()
+                            .await
+                            .map_err(|e| AIProviderError::ProviderBuilderError(e.into()))?;
+
+                        let provider = Arc::new(AIProvider::from(provider));
+
+                        Ok(Arc::new(LanguageModel {
+                            provider,
+                            model_name: CONFIG.language_model.model.clone(),
+                        }))
+                    }
+                }
+            })
+            .await
+            .cloned()
     }
 }
 
@@ -51,10 +99,6 @@ impl RerankingModel {
             model_name,
         }
     }
-
-    pub fn get_model() -> Arc<LanguageModel> {
-        Arc::clone(&LANGUAGE_MODEL)
-    }
 }
 
 #[derive(Debug)]
@@ -66,27 +110,6 @@ pub enum AIProvider {
     XAI(XAIProvider),
     AmazonBedrock(AmazonBedrockProvider),
     Cohere(CohereProvider),
-}
-
-lazy_static! {
-    static ref LANGUAGE_MODEL: Arc<LanguageModel> = match CONFIG.language_model.provider.clone() {
-        umem_config::Provider::OpenAI(open_ai) => {
-            let openai_provider = OpenAIProvider::builder()
-                .api_key(open_ai.api_key)
-                .base_url(open_ai.base_url)
-                .default_headers(open_ai.default_headers.unwrap_or_default())
-                .project(open_ai.project)
-                .organization(open_ai.organization)
-                .build();
-
-            let provider = Arc::new(AIProvider::from(openai_provider));
-
-            Arc::new(LanguageModel {
-                provider,
-                model_name: CONFIG.language_model.model_name.clone(),
-            })
-        }
-    };
 }
 
 impl AIProvider {

@@ -1,23 +1,15 @@
 use anyhow::Result;
 use dotenv::dotenv;
-use umem::tracing;
-use umem_config::CONFIG;
+use umem::tracing_conf;
+use umem_memory_machine::MemoryMachine;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     dotenv().ok();
-    let _guard = tracing::init_tracing()?;
+    let _guard = tracing_conf::init_tracing()?;
 
-    let mcp_handle = tokio::spawn(async move {
-        umem_mcp::run_server(
-            CONFIG
-                .mcp
-                .clone()
-                .expect("no config [mcp] found in toml file"),
-        )
-        .await
-    });
-
+    let machine = MemoryMachine::new().await?;
+    let mcp_handle = tokio::spawn(async move { machine.run_grpc().await });
     mcp_handle.await??;
 
     Ok(())

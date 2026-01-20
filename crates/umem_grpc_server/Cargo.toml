@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-tonic = "0.12"
 umem_proto = { workspace = true}
 umem_config = { workspace = true}
-umem_controller = { workspace = true}
+umem_controller = { workspace = true }
 umem_core = { workspace = true}
 anyhow = { workspace = true}
 tracing = { workspace = true }
-
+tonic-reflection = "0.14.2"
+tonic = "0.14.2"
