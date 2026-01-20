@@ -118,8 +118,8 @@ pub struct AppConfig {
     pub embedder: Embedder,
     pub language_model: LanguageModel,
     pub reranker: Reranker,
-    pub mcp: Option<Mcp>,
-    pub grpc: Option<Grpc>,
+    pub mcp: Mcp,
+    pub grpc: Grpc,
 }
 
 impl Default for AppConfig {

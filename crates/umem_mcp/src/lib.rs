@@ -23,6 +23,7 @@ use tower_http::{
     trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer},
 };
 use tracing::{error, info, Level};
+use umem_controller::MemoryController;
 
 pub const USER_ID_HEADER: &str = "x-evenscribe-header";
 
@@ -129,9 +130,9 @@ async fn oauth_authorization_server(
         .unwrap_or_else(|e| panic!("{}", e))
 }
 
-fn build_stream_http(app_state: Arc<McpAppState>) -> Router {
+fn build_stream_http(app_state: Arc<McpAppState>, memory_controller: MemoryController) -> Router {
     let streamable_service = StreamableHttpService::new(
-        || Ok(service::McpService::new()),
+        move || Ok(service::McpService::new(memory_controller.clone())),
         LocalSessionManager::default().into(),
         StreamableHttpServerConfig::default(),
     );
@@ -158,7 +159,7 @@ fn build_stream_http(app_state: Arc<McpAppState>) -> Router {
         )
 }
 
-fn build_sse(app_state: Arc<McpAppState>) -> Router {
+fn build_sse(app_state: Arc<McpAppState>, memory_controller: MemoryController) -> Router {
     let sse_config = SseServerConfig {
         bind: app_state.server_addr,
         sse_path: "/mcp/sse".to_string(),
@@ -168,7 +169,7 @@ fn build_sse(app_state: Arc<McpAppState>) -> Router {
     };
 
     let (sse_server, sse_router) = SseServer::new(sse_config);
-    sse_server.with_service(service::McpService::new);
+    sse_server.with_service(move || service::McpService::new(memory_controller.clone()));
     sse_router
         .layer(middleware::from_fn_with_state(
             app_state,
@@ -210,24 +211,31 @@ fn build_auth_router(app_state: Arc<McpAppState>) -> Router {
         .with_state(app_state)
 }
 
-pub async fn run_server(config: umem_config::Mcp) -> Result<()> {
-    let addr = config.server_addr;
-    let app_state = Arc::new(McpAppState::new(config).await);
+pub struct MemoryServiceMcp;
 
-    let protected_sse_router = build_sse(Arc::clone(&app_state));
-    let streamable_router = build_stream_http(Arc::clone(&app_state));
-    let oauth_server_router = build_auth_router(Arc::clone(&app_state));
+impl MemoryServiceMcp {
+    pub async fn run_server(
+        config: umem_config::Mcp,
+        memory_controller: MemoryController,
+    ) -> Result<()> {
+        let addr = config.server_addr;
+        let app_state = Arc::new(McpAppState::new(config).await);
 
-    let app = Router::new().merge(oauth_server_router);
-    let app = app.merge(protected_sse_router).merge(streamable_router);
+        let protected_sse_router = build_sse(Arc::clone(&app_state), memory_controller.clone());
+        let streamable_router = build_stream_http(Arc::clone(&app_state), memory_controller);
+        let oauth_server_router = build_auth_router(Arc::clone(&app_state));
 
-    info!("MCP OAuth Server started on {}", addr);
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    let server = axum::serve(listener, app);
+        let app = Router::new().merge(oauth_server_router);
+        let app = app.merge(protected_sse_router).merge(streamable_router);
 
-    if let Err(e) = server.await {
-        error!("Server error: {}", e);
+        info!("MCP OAuth Server started on {}", addr);
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        let server = axum::serve(listener, app);
+
+        if let Err(e) = server.await {
+            error!("Server error: {}", e);
+        }
+
+        Ok(())
     }
-
-    Ok(())
 }

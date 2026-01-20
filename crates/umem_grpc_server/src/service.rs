@@ -14,8 +14,15 @@ use umem_proto::{
     SearchMemoriesRequest,
 };
 
-#[derive(Debug, Default)]
-pub struct ServiceImpl;
+pub struct ServiceImpl {
+    memory_controller: MemoryController,
+}
+
+impl ServiceImpl {
+    pub fn new(memory_controller: MemoryController) -> Self {
+        Self { memory_controller }
+    }
+}
 
 #[tonic::async_trait]
 impl MemoryService for ServiceImpl {
@@ -30,17 +37,18 @@ impl MemoryService for ServiceImpl {
             run_id,
         } = request.into_inner();
 
-        MemoryController::create(
-            umem_controller::CreateMemoryRequest::builder()
-                .raw_content(raw_content)
-                .user_id(user_id)
-                .agent_id(agent_id)
-                .run_id(run_id)
-                .build(),
-            None,
-        )
-        .await
-        .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+        self.memory_controller
+            .create(
+                umem_controller::CreateMemoryRequest::builder()
+                    .raw_content(raw_content)
+                    .user_id(user_id)
+                    .agent_id(agent_id)
+                    .run_id(run_id)
+                    .build(),
+                None,
+            )
+            .await
+            .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
 
         Ok(Response::new(()))
     }
@@ -50,7 +58,8 @@ impl MemoryService for ServiceImpl {
         request: Request<DeleteMemoryRequest>,
     ) -> Result<Response<()>, Status> {
         let request = request.into_inner();
-        MemoryController::delete(request.id)
+        self.memory_controller
+            .delete(request.id)
             .await
             .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
 
@@ -62,7 +71,9 @@ impl MemoryService for ServiceImpl {
         request: Request<GetMemoryRequest>,
     ) -> Result<Response<MemoryResponse>, Status> {
         let request = request.into_inner();
-        let memory = MemoryController::get(request.id)
+        let memory = self
+            .memory_controller
+            .get(request.id)
             .await
             .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
 
@@ -81,12 +92,14 @@ impl MemoryService for ServiceImpl {
             return Err(Status::new(Code::InvalidArgument, "context must be passed"));
         }
 
-        let memories = MemoryController::list_with_context(
-            Self::map_context(request.context.unwrap())
-                .map_err(|e| Status::new(Code::InvalidArgument, e.to_string()))?,
-        )
-        .await
-        .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+        let memories = self
+            .memory_controller
+            .list_with_context(
+                Self::map_context(request.context.unwrap())
+                    .map_err(|e| Status::new(Code::InvalidArgument, e.to_string()))?,
+            )
+            .await
+            .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
 
         Ok(Response::new(MemoryListResponse {
             memories: memories.into_iter().map(Self::map_memory).collect(),
@@ -103,14 +116,16 @@ impl MemoryService for ServiceImpl {
             return Err(Status::new(Code::InvalidArgument, "context must be passed"));
         }
 
-        let memories = MemoryController::multi_search_with_context(
-            Self::map_context(request.context.unwrap())
-                .map_err(|e| Status::new(Code::InvalidArgument, e.to_string()))?,
-            request.query,
-            None,
-        )
-        .await
-        .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
+        let memories = self
+            .memory_controller
+            .multi_search_with_context(
+                Self::map_context(request.context.unwrap())
+                    .map_err(|e| Status::new(Code::InvalidArgument, e.to_string()))?,
+                request.query,
+                None,
+            )
+            .await
+            .map_err(|e| Status::new(Code::Internal, e.to_string()))?;
 
         Ok(Response::new(MemoryListResponse {
             memories: memories.into_iter().map(Self::map_memory).collect(),

@@ -12,12 +12,20 @@ pub use response_generators::*;
 use schemars::JsonSchema;
 use serde::{Serialize, de::DeserializeOwned};
 use std::sync::Arc;
+use thiserror::Error;
+use tokio::sync::OnceCell;
 use umem_config::CONFIG;
 
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
 lazy_static! {
     static ref reqwest_client: reqwest::Client = reqwest::Client::new();
+}
+
+#[derive(Error, Debug)]
+pub enum LanguageModelError {
+    #[error("ai provider failed with : {0}")]
+    AIProviderError(#[from] AIProviderError),
 }
 
 pub struct LanguageModel {
@@ -35,7 +43,7 @@ impl LanguageModel {
         }
     }
 
-    pub async fn get_model() -> Result<Arc<LanguageModel>, AIProviderError> {
+    pub async fn get_model() -> Result<Arc<LanguageModel>, LanguageModelError> {
         LANGUAGE_MODEL
             .get_or_try_init(|| async {
                 match CONFIG.language_model.provider.clone() {
@@ -90,10 +98,6 @@ impl RerankingModel {
             provider,
             model_name,
         }
-    }
-
-    pub fn get_model() -> Arc<LanguageModel> {
-        Arc::clone(&LANGUAGE_MODEL)
     }
 }
 

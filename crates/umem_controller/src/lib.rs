@@ -41,6 +41,7 @@ pub enum MemoryControllerError {
     SearchMemoryError(#[from] SearchMemoryError),
 }
 
+#[derive(Clone)]
 pub struct MemoryController {
     pub vector_store: Arc<dyn VectorStoreBase + Send + Sync>,
     pub embedder: Arc<dyn EmbedderBase + Send + Sync>,

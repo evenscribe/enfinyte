@@ -50,6 +50,7 @@ serde-saphyr = "0.0.12"
 
 [dependencies]
 umem_grpc_server = { workspace = true }
+umem_memory_machine = {path = "crates/umem_memory_machine"}
 umem_mcp = { workspace = true }
 thiserror = { workspace = true }
 typed-builder = { workspace = true }
