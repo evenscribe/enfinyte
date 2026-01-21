@@ -9,7 +9,6 @@ umem_vector_store = { workspace = true}
 umem_ai = { workspace = true}
 umem_embeddings = { workspace = true}
 umem_refine = { workspace = true}
-umem_rerank = { workspace = true}
 umem_annotations = { workspace = true}
 umem_core = { workspace = true}
 anyhow = { workspace = true }

@@ -7,7 +7,6 @@ edition = "2021"
 umem_embeddings = { workspace = true }
 umem_controller = { workspace = true }
 umem_vector_store = { workspace = true }
-umem_rerank = { workspace = true }
 umem_config = { workspace = true }
 umem_grpc_server = { workspace = true }
 umem_ai = { workspace = true }
