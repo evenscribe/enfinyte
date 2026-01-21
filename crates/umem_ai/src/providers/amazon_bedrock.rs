@@ -1,7 +1,8 @@
 use crate::{
-    GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText, OpenAIProvider,
-    Ranking, RerankRequest, RerankResponse, Reranks, ReranksStructuredData, SerializationMode,
-    StructuredRanking, StructuredRerankRequest, StructuredRerankResponse,
+    Embeds, GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText,
+    OpenAIProvider, Ranking, RerankRequest, RerankResponse, Reranks, ReranksStructuredData,
+    SerializationMode, StructuredRanking, StructuredRerankRequest, StructuredRerankResponse,
+    embed::{EmbeddingRequest, EmbeddingResponse},
     messages::{FilePart, UserModelMessage},
     response_generators::{
         self, GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
@@ -18,24 +19,40 @@ use aws_sdk_bedrockagentruntime::types::{
 };
 use aws_sdk_bedrockruntime::{
     error::BuildError,
-    operation::converse::builders::ConverseFluentBuilder,
+    operation::{converse::builders::ConverseFluentBuilder, invoke_model::InvokeModelOutput},
     types::{
         AnyToolChoice, ContentBlock, ConverseOutput, ImageBlock, InferenceConfiguration, Message,
         Tool, ToolChoice, ToolConfiguration, ToolInputSchema, ToolSpecification,
     },
 };
 use base64::Engine;
+use futures::future::join_all;
 use schemars::JsonSchema;
-use serde::{Serialize, de::DeserializeOwned};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Map;
 use std::sync::Arc;
 use thiserror::Error;
+use tokio::sync::Semaphore;
 
 #[derive(Clone, Debug)]
 pub struct AmazonBedrockProvider {
     region: Region,
     bedrockruntime_client: Arc<aws_sdk_bedrockruntime::Client>,
     bedrockagentruntime_client: Arc<aws_sdk_bedrockagentruntime::Client>,
+}
+
+impl AmazonBedrockProvider {
+    async fn default() -> Self {
+        Self::builder()
+            .region(std::env::var("AWS_REGION").expect("AWS_REGION not set"))
+            .access_key_id(std::env::var("AWS_ACCESS_KEY_ID").expect("AWS_ACCESS_KEY_ID not set"))
+            .secret_access_key(
+                std::env::var("AWS_SECRET_ACCESS_KEY").expect("AWS_SECRET_ACCESS_KEY not set"),
+            )
+            .build()
+            .await
+            .expect("Failed to build AmazonBedrockProvider based on default environment variables")
+    }
 }
 
 #[async_trait]
@@ -437,6 +454,93 @@ impl ReranksStructuredData for AmazonBedrockProvider {
             raw_fields: Map::with_capacity(0_usize),
         })
     }
+}
+
+#[async_trait]
+impl Embeds for AmazonBedrockProvider {
+    async fn embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingResponse, ResponseGeneratorError> {
+        if request.input.is_empty() {
+            return Err(ResponseGeneratorError::InvalidArgumentsProvided(
+                "Embedding input cannot be empty".to_string(),
+            ));
+        }
+
+        let semaphore = Arc::new(Semaphore::new(request.max_parallels));
+        let mut embedding_invoke_handles = Vec::with_capacity(request.input.len());
+
+        for data in request.input.into_iter() {
+            let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
+                ResponseGeneratorError::InternalServerError(format!(
+                    "Failed to acquire thread lock while makng multiple requests. Details: {e}"
+                ))
+            })?;
+
+            let bedrockruntime_client = Arc::clone(&self.bedrockruntime_client);
+            let model_name = request.model.model_name.clone();
+
+            let handle = tokio::spawn(async move {
+                let invoke_res = bedrockruntime_client
+                    .invoke_model()
+                    .model_id(&model_name)
+                    .body(aws_smithy_types::Blob::new(data))
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        ResponseGeneratorError::BedrockRerankInvokeError(format!(
+                            "Failed to invoke Bedrock reranking model: {}",
+                            e
+                        ))
+                    });
+                drop(permit);
+                invoke_res
+            });
+
+            embedding_invoke_handles.push(handle)
+        }
+
+        let results: Result<Vec<InvokeModelOutput>, ResponseGeneratorError> =
+            join_all(embedding_invoke_handles)
+                .await
+                .into_iter()
+                .map(|r| {
+                    r.map_err(|e| {
+                        ResponseGeneratorError::InternalServerError(format!(
+                            "Failed to acquire result from the relevant thread. Details: {e}"
+                        ))
+                    })
+                })
+                .map(|r| r.and_then(|inner| inner))
+                .collect();
+
+        let embeddings = results?
+            .into_iter()
+            .map(|r| {
+                serde_json::from_slice::<AmazonBedrockEmbeddingInvokeModelResponse>(
+                    &r.body.into_inner(),
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| {
+                ResponseGeneratorError::Deserialization(
+                    e,
+                    "Failed to deserialize Bedrock embedding response".to_string(),
+                )
+            })?;
+
+        Ok(EmbeddingResponse {
+            embeddings: embeddings.into_iter().map(|e| e.embedding).collect(),
+        })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AmazonBedrockEmbeddingInvokeModelResponse {
+    embedding: Vec<f32>,
+    input_text_token_count: usize,
 }
 
 impl AmazonBedrockProvider {

@@ -1,3 +1,4 @@
+pub mod embed;
 pub mod generate_object;
 pub mod generate_text;
 pub mod messages;
@@ -9,8 +10,8 @@ pub use generate_text::*;
 pub use messages::*;
 pub use rerank::*;
 pub use structured_rerank::*;
-
 use thiserror::Error;
+
 #[derive(Error, Debug)]
 pub enum ResponseGeneratorError {
     #[error(transparent)]
@@ -23,12 +24,16 @@ pub enum ResponseGeneratorError {
     BedrockConverseError(String),
     #[error("BedrockAgentRuntime Rerank Command error, Details: {0}")]
     BedrockAgentRerankCommandSendError(String),
+    #[error("BedrockRuntime Rerank Invoke API error, Details: {0}")]
+    BedrockRerankInvokeError(String),
     #[error("empty response from AI provider")]
     EmptyProviderResponse,
     #[error("invalid response from AI provider, Details: {0}")]
     InvalidProviderResponse(String),
     #[error("invalid arguments provided: {0}")]
     InvalidArgumentsProvided(String),
+    #[error("Internal Server Error: {0}")]
+    InternalServerError(String),
     #[error(transparent)]
     Transient(#[from] anyhow::Error),
     #[error("yaml serialization error: {0}")]
