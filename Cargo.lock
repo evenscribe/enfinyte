@@ -3925,25 +3925,6 @@ dependencies = [
 
 [[package]]
 name = "serde-saphyr"
-version = "0.0.12"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ef7e021087b4b525edcbb93045ca3f1dafeff7800b3c7960a90a75f197e257da"
-dependencies = [
- "ahash",
- "annotate-snippets",
- "base64",
- "encoding_rs_io",
- "nohash-hasher",
- "num-traits",
- "ryu",
- "saphyr-parser",
- "serde",
- "serde_json",
- "smallvec 2.0.0-alpha.12",
-]
-
-[[package]]
-name = "serde-saphyr"
 version = "0.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45400dbf0a2c4c2af106c08eb1028b3e45bea3cd45517d3a0e8170b86597122f"
@@ -5152,7 +5133,6 @@ dependencies = [
  "umem_grpc_server",
  "umem_mcp",
  "umem_memory_machine",
- "umem_rerank",
  "umem_vector_store",
 ]
 
@@ -5174,7 +5154,7 @@ dependencies = [
  "rustc-hash 2.1.1",
  "schemars",
  "serde",
- "serde-saphyr 0.0.14",
+ "serde-saphyr",
  "serde_json",
  "thiserror 2.0.17",
  "tokio",
@@ -5229,7 +5209,6 @@ dependencies = [
  "umem_core",
  "umem_embeddings",
  "umem_refine",
- "umem_rerank",
  "umem_vector_store",
  "uuid",
 ]
@@ -5339,7 +5318,6 @@ dependencies = [
  "umem_embeddings",
  "umem_grpc_server",
  "umem_mcp",
- "umem_rerank",
  "umem_vector_store",
 ]
 
@@ -5363,32 +5341,6 @@ dependencies = [
  "stopwords",
  "thiserror 2.0.17",
  "umem_ai",
-]
-
-[[package]]
-name = "umem_rerank"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "reqwest",
- "serde",
- "serde-saphyr 0.0.12",
- "serde_json",
- "thiserror 2.0.17",
- "tokio",
- "typed-builder",
- "umem_config",
- "umem_core",
- "umem_rerank_derive",
-]
-
-[[package]]
-name = "umem_rerank_derive"
-version = "0.1.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]

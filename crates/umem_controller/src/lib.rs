@@ -14,9 +14,8 @@ pub use delete_memory::*;
 pub use get_memory::*;
 pub use list_memory::*;
 pub use search_memory::*;
-use umem_ai::LanguageModel;
+use umem_ai::{LanguageModel, RerankingModel};
 use umem_embeddings::EmbedderBase;
-use umem_rerank::RerankerBase;
 use umem_vector_store::VectorStoreBase;
 pub use update_memory::*;
 
@@ -45,6 +44,6 @@ pub enum MemoryControllerError {
 pub struct MemoryController {
     pub vector_store: Arc<dyn VectorStoreBase + Send + Sync>,
     pub embedder: Arc<dyn EmbedderBase + Send + Sync>,
-    pub reranker: Arc<dyn RerankerBase + Send + Sync>,
+    pub reranking_model: Arc<RerankingModel>,
     pub language_model: Arc<LanguageModel>,
 }

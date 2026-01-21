@@ -55,7 +55,7 @@ pub struct Mcp {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub enum Embedder {
+pub enum EmbeddingModel {
     #[serde(rename = "cloudflare")]
     Cloudflare(Cloudflare),
 }
@@ -92,32 +92,17 @@ pub enum VectorStore {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct Pinecone {
-    pub api_key: String,
+pub struct RerankingModel {
+    pub provider: Provider,
     pub model: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct Cohere {
-    pub api_key: String,
-    pub model: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub enum Reranker {
-    #[serde(rename = "pinecone")]
-    Pinecone(Pinecone),
-
-    #[serde(rename = "cohere")]
-    Cohere(Cohere),
 }
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct AppConfig {
     pub vector_store: VectorStore,
-    pub embedder: Embedder,
+    pub embedding_model: EmbeddingModel,
     pub language_model: LanguageModel,
-    pub reranker: Reranker,
+    pub reranking_model: RerankingModel,
     pub mcp: Mcp,
     pub grpc: Grpc,
 }

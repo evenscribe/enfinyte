@@ -86,11 +86,19 @@ impl LanguageModel {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum RerankingModelError {
+    #[error("ai provider failed with : {0}")]
+    AIProviderError(#[from] AIProviderError),
+}
+
 #[derive(Debug, Clone)]
 pub struct RerankingModel {
     pub provider: Arc<AIProvider>,
     pub model_name: String,
 }
+
+static RERANKING_MODEL: OnceCell<Arc<RerankingModel>> = OnceCell::const_new();
 
 impl RerankingModel {
     fn new(provider: Arc<AIProvider>, model_name: String) -> Self {
@@ -98,6 +106,48 @@ impl RerankingModel {
             provider,
             model_name,
         }
+    }
+
+    pub async fn get_model() -> Result<Arc<RerankingModel>, LanguageModelError> {
+        RERANKING_MODEL
+            .get_or_try_init(|| async {
+                match CONFIG.reranking_model.provider.clone() {
+                    umem_config::Provider::OpenAI(open_ai) => {
+                        let openai_provider = OpenAIProvider::builder()
+                            .api_key(open_ai.api_key)
+                            .base_url(open_ai.base_url)
+                            .default_headers(open_ai.default_headers.unwrap_or_default())
+                            .project(open_ai.project)
+                            .organization(open_ai.organization)
+                            .build();
+
+                        let provider = Arc::new(AIProvider::from(openai_provider));
+
+                        Ok(Arc::new(RerankingModel {
+                            provider,
+                            model_name: CONFIG.reranking_model.model.clone(),
+                        }))
+                    }
+                    umem_config::Provider::AmazonBedrock(config) => {
+                        let provider = AmazonBedrockProviderBuilder::default()
+                            .region(config.region)
+                            .access_key_id(config.key_id)
+                            .secret_access_key(config.access_key)
+                            .build()
+                            .await
+                            .map_err(|e| AIProviderError::ProviderBuilderError(e.into()))?;
+
+                        let provider = Arc::new(AIProvider::from(provider));
+
+                        Ok(Arc::new(RerankingModel {
+                            provider,
+                            model_name: CONFIG.reranking_model.model.clone(),
+                        }))
+                    }
+                }
+            })
+            .await
+            .cloned()
     }
 }
 

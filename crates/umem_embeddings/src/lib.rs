@@ -33,8 +33,8 @@ impl Embedder {
     pub async fn get_embedder() -> Result<Arc<dyn EmbedderBase + Send + Sync>> {
         EMBEDDER
             .get_or_try_init(|| async {
-                match CONFIG.embedder.clone() {
-                    umem_config::Embedder::Cloudflare(config) => {
+                match CONFIG.embedding_model.clone() {
+                    umem_config::EmbeddingModel::Cloudflare(config) => {
                         let cloudflare = Cloudflare::new(config);
                         Ok(Arc::new(cloudflare) as Arc<dyn EmbedderBase + Send + Sync>)
                     }

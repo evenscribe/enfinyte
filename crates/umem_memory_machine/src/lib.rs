@@ -2,13 +2,12 @@ use std::sync::Arc;
 
 use thiserror::Error;
 use typed_builder::TypedBuilder;
-use umem_ai::{LanguageModel, LanguageModelError};
+use umem_ai::{LanguageModel, LanguageModelError, RerankingModel, RerankingModelError};
 use umem_config::CONFIG;
 use umem_controller::MemoryController;
 use umem_embeddings::{Embedder, EmbedderBase, EmbedderError};
 use umem_grpc_server::MemoryServiceGrpc;
 use umem_mcp::MemoryServiceMcp;
-use umem_rerank::{RerankError, Reranker, RerankerBase};
 use umem_vector_store::{VectorStore, VectorStoreBase, VectorStoreError};
 
 #[derive(Debug, Error)]
@@ -20,7 +19,7 @@ pub enum MemoryMachineError {
     VectorStoreError(#[from] VectorStoreError),
 
     #[error("memory machine rerank failed : {0}")]
-    RerankError(#[from] RerankError),
+    RerankingModelError(#[from] RerankingModelError),
 
     #[error("memory machine llm failed : {0}")]
     LanguageModelError(#[from] LanguageModelError),
@@ -35,7 +34,7 @@ pub struct MemoryMachine {
 pub struct MemoryMachineOptions {
     vector_store: Option<Arc<dyn VectorStoreBase + Send + Sync>>,
     embedder: Option<Arc<dyn EmbedderBase + Send + Sync>>,
-    reranker: Option<Arc<dyn RerankerBase + Send + Sync>>,
+    reranking_model: Option<Arc<RerankingModel>>,
     language_model: Option<Arc<LanguageModel>>,
 }
 
@@ -45,7 +44,7 @@ impl MemoryMachine {
             memory_controller: MemoryController {
                 embedder: Embedder::get_embedder().await?,
                 vector_store: VectorStore::get_store().await?,
-                reranker: Reranker::get_reranker().await?,
+                reranking_model: RerankingModel::get_model().await?,
                 language_model: LanguageModel::get_model().await?,
             },
         })
@@ -56,7 +55,9 @@ impl MemoryMachine {
         let vector_store = options
             .vector_store
             .unwrap_or(VectorStore::get_store().await?);
-        let reranker = options.reranker.unwrap_or(Reranker::get_reranker().await?);
+        let reranking_model = options
+            .reranking_model
+            .unwrap_or(RerankingModel::get_model().await?);
         let language_model = options
             .language_model
             .unwrap_or(LanguageModel::get_model().await?);
@@ -65,7 +66,7 @@ impl MemoryMachine {
             memory_controller: MemoryController {
                 embedder,
                 vector_store,
-                reranker,
+                reranking_model,
                 language_model,
             },
         })

@@ -4,10 +4,12 @@ use thiserror::Error;
 use tokio::{sync::AcquireError, task::JoinError};
 use tracing::info;
 use typed_builder::TypedBuilder;
+use umem_ai::{
+    rerank, RerankRequest, RerankRequestBuilderError, RerankingModelError, ResponseGeneratorError,
+};
 use umem_core::{Memory, MemoryContext, MemoryContextError, Query};
 use umem_embeddings::{EmbedderBase, EmbedderError};
 use umem_refine::{RefineError, Segmenter};
-use umem_rerank::RerankError;
 use umem_vector_store::VectorStoreError;
 
 #[derive(Debug, Error)]
@@ -31,7 +33,13 @@ pub enum SearchMemoryError {
     JoinError(#[from] JoinError),
 
     #[error("rerank action failed with: {0}")]
-    RerankError(#[from] RerankError),
+    RerankingModelError(#[from] RerankingModelError),
+
+    #[error("rerank builder action failed with: {0}")]
+    RerankingModelBuilderError(#[from] RerankRequestBuilderError),
+
+    #[error("rerank response action failed with: {0}")]
+    ResponseGeneratorError(#[from] ResponseGeneratorError),
 }
 
 #[derive(TypedBuilder, Default)]
@@ -86,24 +94,29 @@ impl MemoryController {
         query: String,
         _options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, SearchMemoryError> {
-        let vector_store = Arc::clone(&self.vector_store);
-        let embedder = Arc::clone(&self.embedder);
-        let reranker = Arc::clone(&self.reranker);
-
-        let vector = embedder.generate_embedding(query.as_str()).await?;
+        let vector = self.embedder.generate_embedding(query.as_str()).await?;
         let vector_query = Query::builder()
             .vector(vector)
             .context(context)
             .limit(20)
             .build();
 
-        let mut memories = vector_store.search(vector_query).await?;
+        let mut memories = self.vector_store.search(vector_query).await?;
 
-        let data = reranker.rank(query, &memories, None).await?.data;
+        let documents: Vec<String> = memories.iter().map(|m| m.get_summary().clone()).collect();
+        let request = RerankRequest::builder()
+            .model(Arc::clone(&self.reranking_model))
+            .documents(documents)
+            .query(query)
+            .top_k(6)
+            .build()?;
 
-        let memories: Vec<Memory> = data
+        let rerank_response = rerank(request).await?;
+
+        let memories: Vec<Memory> = rerank_response
+            .rankings
             .iter()
-            .map(|row| std::mem::take(&mut memories[row.index]))
+            .map(|row| std::mem::take(&mut memories[row.original_index]))
             .collect();
 
         Ok(memories)
@@ -132,7 +145,6 @@ impl MemoryController {
 
         let vector_store = Arc::clone(&self.vector_store);
         let embedder = Arc::clone(&self.embedder);
-        let reranker = Arc::clone(&self.reranker);
 
         let semaphore = Arc::new(Semaphore::new(8)); // limit concurrency (tune this!)
         let mut tasks: FuturesUnordered<JoinHandle<Result<Vec<Memory>, SearchMemoryError>>> =
@@ -174,15 +186,27 @@ impl MemoryController {
         let duration = start.elapsed();
         info!("Searching time : {:?}", duration);
 
+        let documents: Vec<String> = all_memories
+            .iter()
+            .map(|m| m.get_summary().clone())
+            .collect();
+        let request = RerankRequest::builder()
+            .model(Arc::clone(&self.reranking_model))
+            .documents(documents)
+            .query(query)
+            .top_k(6)
+            .build()?;
+
         let start = Instant::now();
-        let data = reranker.rank(query, &all_memories, None).await?.data;
+        let rerank_response = rerank(request).await?;
         let duration = start.elapsed();
-        info!("Ranking time : {:?}", duration);
+        info!("Reranking time : {:?}", duration);
 
         // TODO: hybrid search with "row.score" + other metrics
-        let memories: Vec<Memory> = data
+        let memories: Vec<Memory> = rerank_response
+            .rankings
             .iter()
-            .map(|row| std::mem::take(&mut all_memories[row.index]))
+            .map(|row| std::mem::take(&mut all_memories[row.original_index]))
             .collect();
 
         Ok(memories)
