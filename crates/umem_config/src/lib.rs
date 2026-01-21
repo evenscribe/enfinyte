@@ -92,18 +92,6 @@ pub enum VectorStore {
 }
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct Pinecone {
-    pub api_key: String,
-    pub model: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub struct Cohere {
-    pub api_key: String,
-    pub model: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
 pub struct RerankingModel {
     pub provider: Provider,
     pub model: String,
