@@ -1,8 +1,9 @@
-use crate::LanguageModel;
 use crate::ResponseGeneratorError;
+use crate::models::LanguageModel;
 use crate::response_generators::messages::Message;
 use crate::utils;
 use crate::utils::is_retryable_error;
+use async_trait::async_trait;
 use backon::ExponentialBuilder;
 use backon::Retryable;
 use reqwest::header::HeaderMap;
@@ -10,7 +11,14 @@ use std::sync::Arc;
 use std::time::Duration;
 use thiserror::Error;
 
-// TODO: Wrap me with observers for logging, metrics, tracing, etc.
+#[async_trait]
+pub trait GeneratesText {
+    async fn generate_text(
+        &self,
+        request: GenerateTextRequest,
+    ) -> Result<GenerateTextResponse, ResponseGeneratorError>;
+}
+
 pub async fn generate_text(
     request: GenerateTextRequest,
 ) -> Result<GenerateTextResponse, ResponseGeneratorError> {

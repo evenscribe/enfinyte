@@ -1,6 +1,6 @@
 use crate::{
-    AIProvider, AIProviderError, AmazonBedrockProviderBuilder, OpenAIProvider, RerankingModel,
-    RerankingModelError,
+    AIProvider, AIProviderError, AmazonBedrockProviderBuilder, OpenAIProvider,
+    models::{RerankingModel, RerankingModelError},
 };
 use std::sync::Arc;
 use tokio::sync::OnceCell;
