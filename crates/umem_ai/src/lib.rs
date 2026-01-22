@@ -16,6 +16,8 @@ use thiserror::Error;
 use tokio::sync::OnceCell;
 use umem_config::CONFIG;
 
+use crate::response_generators::embed::{EmbeddingRequest, EmbeddingResponse};
+
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
 lazy_static! {
@@ -151,6 +153,12 @@ impl RerankingModel {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct EmbeddingModel {
+    pub provider: Arc<AIProvider>,
+    pub model_name: String,
+}
+
 #[derive(Debug)]
 pub enum AIProvider {
     OpenAI(OpenAIProvider),
@@ -214,6 +222,17 @@ impl AIProvider {
             _ => unimplemented!(),
         }
     }
+
+    pub(crate) async fn do_embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingResponse, ResponseGeneratorError> {
+        match self {
+            AIProvider::AmazonBedrock(provider) => provider.embed(request),
+            _ => unimplemented!(),
+        }
+        .await
+    }
 }
 
 #[async_trait]
@@ -248,6 +267,14 @@ pub trait ReranksStructuredData {
     ) -> Result<StructuredRerankResponse<T>, ResponseGeneratorError>
     where
         T: Serialize + Clone + Send + Sync;
+}
+
+#[async_trait]
+pub trait Embeds {
+    async fn embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingResponse, ResponseGeneratorError>;
 }
 
 impl From<OpenAIProvider> for AIProvider {

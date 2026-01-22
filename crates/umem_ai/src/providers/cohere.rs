@@ -36,6 +36,18 @@ pub struct CohereProvider {
     headers: HeaderMap,
 }
 
+impl Default for CohereProvider {
+    fn default() -> Self {
+        Self {
+            base_url: "https://api.cohere.com/v2".into(),
+            api_key: std::env::var("COHERE_API_KEY").expect(
+                "COHERE_API_KEY must be set to get a default implementation of cohere provider",
+            ),
+            headers: HeaderMap::new(),
+        }
+    }
+}
+
 #[async_trait]
 impl Reranks for CohereProvider {
     async fn rerank(

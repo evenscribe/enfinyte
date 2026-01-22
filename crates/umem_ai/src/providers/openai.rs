@@ -35,6 +35,18 @@ pub struct OpenAIProvider {
     pub project: Option<String>,
 }
 
+impl Default for OpenAIProvider {
+    fn default() -> Self {
+        Self {
+            api_key: std::env::var("OPENAI_API_KEY").expect("OPENAI_API_KEY must be set"),
+            base_url: "https://api.openai.com/v1".into(),
+            default_headers: HeaderMap::new(),
+            organization: None,
+            project: None,
+        }
+    }
+}
+
 impl OpenAIProvider {
     pub fn normalize_generate_object_request<
         T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned,
