@@ -5129,7 +5129,6 @@ dependencies = [
  "umem_ai",
  "umem_config",
  "umem_controller",
- "umem_embeddings",
  "umem_grpc_server",
  "umem_mcp",
  "umem_memory_machine",
@@ -5208,7 +5207,6 @@ dependencies = [
  "umem_ai",
  "umem_annotations",
  "umem_core",
- "umem_embeddings",
  "umem_refine",
  "umem_vector_store",
  "uuid",
@@ -5261,19 +5259,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "umem_embeddings"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "lazy_static",
- "reqwest",
- "serde",
- "thiserror 2.0.17",
- "tokio",
- "umem_config",
-]
-
-[[package]]
 name = "umem_grpc_server"
 version = "0.1.0"
 dependencies = [
@@ -5316,7 +5301,6 @@ dependencies = [
  "umem_ai",
  "umem_config",
  "umem_controller",
- "umem_embeddings",
  "umem_grpc_server",
  "umem_mcp",
  "umem_vector_store",

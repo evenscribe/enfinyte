@@ -3,8 +3,8 @@ use std::sync::Arc;
 use super::{MemoryController, MemoryControllerError};
 use thiserror::Error;
 use typed_builder::TypedBuilder;
+use umem_ai::EmbeddingModelError;
 use umem_core::Memory;
-use umem_embeddings::EmbedderError;
 use umem_vector_store::VectorStoreError;
 
 #[derive(Debug, Error)]
@@ -25,7 +25,7 @@ pub enum UpdateMemoryError {
     VectorStoreError(#[from] VectorStoreError),
 
     #[error("embedder action failed with: {0}")]
-    EmbedderError(#[from] EmbedderError),
+    EmbeddingModelError(#[from] EmbeddingModelError),
 }
 
 #[derive(TypedBuilder)]

@@ -16,8 +16,6 @@ use thiserror::Error;
 use tokio::sync::OnceCell;
 use umem_config::CONFIG;
 
-use crate::response_generators::embed::{EmbeddingRequest, EmbeddingResponse};
-
 pub type HashMap<K, V> = rustc_hash::FxHashMap<K, V>;
 
 lazy_static! {
@@ -153,10 +151,69 @@ impl RerankingModel {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum EmbeddingModelError {
+    #[error("ai provider failed with : {0}")]
+    AIProviderError(#[from] AIProviderError),
+}
+
 #[derive(Debug, Clone)]
 pub struct EmbeddingModel {
     pub provider: Arc<AIProvider>,
     pub model_name: String,
+}
+
+static EMBEDDING_MODEL: OnceCell<Arc<EmbeddingModel>> = OnceCell::const_new();
+
+impl EmbeddingModel {
+    fn new(provider: Arc<AIProvider>, model_name: String) -> Self {
+        Self {
+            provider,
+            model_name,
+        }
+    }
+
+    pub async fn get_model() -> Result<Arc<EmbeddingModel>, LanguageModelError> {
+        EMBEDDING_MODEL
+            .get_or_try_init(|| async {
+                match CONFIG.embedding_model.provider.clone() {
+                    umem_config::Provider::OpenAI(open_ai) => {
+                        let openai_provider = OpenAIProvider::builder()
+                            .api_key(open_ai.api_key)
+                            .base_url(open_ai.base_url)
+                            .default_headers(open_ai.default_headers.unwrap_or_default())
+                            .project(open_ai.project)
+                            .organization(open_ai.organization)
+                            .build();
+
+                        let provider = Arc::new(AIProvider::from(openai_provider));
+
+                        Ok(Arc::new(EmbeddingModel {
+                            provider,
+                            model_name: CONFIG.embedding_model.model.clone(),
+                        }))
+                    }
+                    umem_config::Provider::AmazonBedrock(config) => {
+                        let provider = AmazonBedrockProviderBuilder::default()
+                            .region(config.region)
+                            .access_key_id(config.key_id)
+                            .secret_access_key(config.access_key)
+                            .build()
+                            .await
+                            .map_err(|e| AIProviderError::ProviderBuilderError(e.into()))?;
+
+                        let provider = Arc::new(AIProvider::from(provider));
+
+                        Ok(Arc::new(EmbeddingModel {
+                            provider,
+                            model_name: CONFIG.embedding_model.model.clone(),
+                        }))
+                    }
+                }
+            })
+            .await
+            .cloned()
+    }
 }
 
 #[derive(Debug)]

@@ -13,7 +13,6 @@ umem_memory_machine = {path = "crates/umem_memory_machine"}
 umem_refine = {path = "crates/umem_refine"}
 umem_vector_store = {path = "crates/umem_vector_store"}
 umem_config = {path = "crates/umem_config"}
-umem_embeddings = {path = "crates/umem_embeddings"}
 umem_annotations = {path = "crates/umem_annotations"}
 umem_grpc_server = {path = "crates/umem_grpc_server"}
 umem_web_scrapper = {path = "crates/umem_web_scrapper"}
@@ -56,7 +55,6 @@ typed-builder = { workspace = true }
 umem_config = { workspace = true }
 umem_controller = { workspace = true }
 umem_ai = { workspace = true }
-umem_embeddings = { workspace = true }
 umem_vector_store = { workspace = true }
 anyhow = { workspace = true }
 tokio = { workspace = true }

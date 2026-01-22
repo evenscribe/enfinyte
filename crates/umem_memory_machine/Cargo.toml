@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-umem_embeddings = { workspace = true }
 umem_controller = { workspace = true }
 umem_vector_store = { workspace = true }
 umem_config = { workspace = true }
