@@ -5,10 +5,11 @@ use tokio::{sync::AcquireError, task::JoinError};
 use tracing::info;
 use typed_builder::TypedBuilder;
 use umem_ai::{
-    rerank, RerankRequest, RerankRequestBuilderError, RerankingModelError, ResponseGeneratorError,
+    embed::{embed, EmbeddingRequest},
+    rerank, EmbeddingModel, EmbeddingModelError, RerankRequest, RerankRequestBuilderError,
+    RerankingModelError, ResponseGeneratorError,
 };
 use umem_core::{Memory, MemoryContext, MemoryContextError, Query};
-use umem_embeddings::{EmbedderBase, EmbedderError};
 use umem_refine::{RefineError, Segmenter};
 use umem_vector_store::VectorStoreError;
 
@@ -20,8 +21,8 @@ pub enum SearchMemoryError {
     #[error("memory context action failed with: {0}")]
     MemoryContextError(#[from] MemoryContextError),
 
-    #[error("embedder action failed with: {0}")]
-    EmbedderError(#[from] EmbedderError),
+    #[error("embedding action failed with: {0}")]
+    EmbeddingModelError(#[from] EmbeddingModelError),
 
     #[error("umem refine action failed with: {0}")]
     RefineError(#[from] RefineError),
@@ -45,7 +46,7 @@ pub enum SearchMemoryError {
 #[derive(TypedBuilder, Default)]
 pub struct SearchMemoryOptions {
     #[builder(default = None)]
-    pub embedder: Option<Arc<dyn EmbedderBase + Send + Sync>>,
+    pub embedding_model: Option<Arc<EmbeddingModel>>,
 }
 
 impl MemoryController {
@@ -64,17 +65,20 @@ impl MemoryController {
         query: String,
         _options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, SearchMemoryError> {
-        let vector_store = Arc::clone(&self.vector_store);
-        let embedder = Arc::clone(&self.embedder);
+        let request = EmbeddingRequest::builder()
+            .model(self.embedding_model.clone())
+            .input(vec![query])
+            .build();
 
-        let vector = embedder.generate_embedding(query.as_str()).await?;
+        let embedding_response = embed(request).await?;
+
         let query = Query::builder()
-            .vector(vector)
+            .vector(embedding_response.embeddings[0].clone())
             .context(MemoryContext::for_user(user_id)?)
             .limit(1000)
             .build();
 
-        Ok(vector_store.search(query).await?)
+        Ok(self.vector_store.search(query).await?)
     }
 
     pub async fn search_with_context(
@@ -94,9 +98,15 @@ impl MemoryController {
         query: String,
         _options: Option<SearchMemoryOptions>,
     ) -> Result<Vec<Memory>, SearchMemoryError> {
-        let vector = self.embedder.generate_embedding(query.as_str()).await?;
+        let request = EmbeddingRequest::builder()
+            .model(self.embedding_model.clone())
+            .input(vec![query.clone()])
+            .build();
+
+        let embedding_response = embed(request).await?;
+
         let vector_query = Query::builder()
-            .vector(vector)
+            .vector(embedding_response.embeddings[0].clone())
             .context(context)
             .limit(20)
             .build();
@@ -144,7 +154,6 @@ impl MemoryController {
         use tokio::task::JoinHandle;
 
         let vector_store = Arc::clone(&self.vector_store);
-        let embedder = Arc::clone(&self.embedder);
 
         let semaphore = Arc::new(Semaphore::new(8)); // limit concurrency (tune this!)
         let mut tasks: FuturesUnordered<JoinHandle<Result<Vec<Memory>, SearchMemoryError>>> =
@@ -152,14 +161,21 @@ impl MemoryController {
         let mut sub_queries = Segmenter::process(&query)?;
         sub_queries.push(query.clone());
 
-        let sub_query_slices: Vec<&str> = sub_queries.iter().map(|s| s.as_str()).collect();
+        // let sub_query_slices: Vec<&str> = sub_queries.iter().map(|s| s.as_str()).collect();
+        // let vectors = embedder.generate_embeddings(&sub_query_slices).await?;
 
         let start = Instant::now();
-        let vectors = embedder.generate_embeddings(&sub_query_slices).await?;
+
+        let request = EmbeddingRequest::builder()
+            .model(self.embedding_model.clone())
+            .input(sub_queries)
+            .build();
+
+        let embedding_response = embed(request).await?;
         let duration = start.elapsed();
         info!("Embedder time : {:?}", duration);
 
-        for vector in vectors {
+        for vector in embedding_response.embeddings {
             let permit = Arc::clone(&semaphore).acquire_owned().await?;
             let vector_store = Arc::clone(&vector_store);
             let context = context.clone();

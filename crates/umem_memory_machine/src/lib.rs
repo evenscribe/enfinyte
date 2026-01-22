@@ -2,19 +2,18 @@ use std::sync::Arc;
 
 use thiserror::Error;
 use typed_builder::TypedBuilder;
-use umem_ai::{LanguageModel, LanguageModelError, RerankingModel, RerankingModelError};
+use umem_ai::{
+    EmbeddingModel, EmbeddingModelError, LanguageModel, LanguageModelError, RerankingModel,
+    RerankingModelError,
+};
 use umem_config::CONFIG;
 use umem_controller::MemoryController;
-use umem_embeddings::{Embedder, EmbedderBase, EmbedderError};
 use umem_grpc_server::MemoryServiceGrpc;
 use umem_mcp::MemoryServiceMcp;
 use umem_vector_store::{VectorStore, VectorStoreBase, VectorStoreError};
 
 #[derive(Debug, Error)]
 pub enum MemoryMachineError {
-    #[error("memory machine embedder failed : {0}")]
-    EmbedderError(#[from] EmbedderError),
-
     #[error("memory machine vector_store failed : {0}")]
     VectorStoreError(#[from] VectorStoreError),
 
@@ -23,6 +22,9 @@ pub enum MemoryMachineError {
 
     #[error("memory machine llm failed : {0}")]
     LanguageModelError(#[from] LanguageModelError),
+
+    #[error("memory machine embedding failed : {0}")]
+    EmbeddingModelError(#[from] EmbeddingModelError),
 }
 
 #[derive(TypedBuilder)]
@@ -33,7 +35,7 @@ pub struct MemoryMachine {
 #[derive(TypedBuilder)]
 pub struct MemoryMachineOptions {
     vector_store: Option<Arc<dyn VectorStoreBase + Send + Sync>>,
-    embedder: Option<Arc<dyn EmbedderBase + Send + Sync>>,
+    embedder: Option<Arc<EmbeddingModel>>,
     reranking_model: Option<Arc<RerankingModel>>,
     language_model: Option<Arc<LanguageModel>>,
 }
@@ -42,7 +44,7 @@ impl MemoryMachine {
     pub async fn new() -> Result<Self, MemoryMachineError> {
         Ok(Self {
             memory_controller: MemoryController {
-                embedder: Embedder::get_embedder().await?,
+                embedding_model: EmbeddingModel::get_model().await?,
                 vector_store: VectorStore::get_store().await?,
                 reranking_model: RerankingModel::get_model().await?,
                 language_model: LanguageModel::get_model().await?,
@@ -51,7 +53,9 @@ impl MemoryMachine {
     }
 
     pub async fn new_with(options: MemoryMachineOptions) -> Result<Self, MemoryMachineError> {
-        let embedder = options.embedder.unwrap_or(Embedder::get_embedder().await?);
+        let embedding_model = options
+            .embedder
+            .unwrap_or(EmbeddingModel::get_model().await?);
         let vector_store = options
             .vector_store
             .unwrap_or(VectorStore::get_store().await?);
@@ -64,7 +68,7 @@ impl MemoryMachine {
 
         Ok(Self {
             memory_controller: MemoryController {
-                embedder,
+                embedding_model,
                 vector_store,
                 reranking_model,
                 language_model,

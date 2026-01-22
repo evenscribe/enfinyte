@@ -2,7 +2,7 @@ use crate::{
     Embeds, GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText,
     OpenAIProvider, Ranking, RerankRequest, RerankResponse, Reranks, ReranksStructuredData,
     SerializationMode, StructuredRanking, StructuredRerankRequest, StructuredRerankResponse,
-    embed::{EmbeddingRequest, EmbeddingResponse, embed as embedFn},
+    embed::{EmbeddingRequest, EmbeddingResponse},
     messages::{FilePart, UserModelMessage},
     response_generators::{
         self, GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
@@ -30,7 +30,7 @@ use futures::future::join_all;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Map;
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use thiserror::Error;
 use tokio::sync::Semaphore;
 
@@ -770,8 +770,8 @@ mod tests {
     use super::*;
     use crate::{
         AIProvider, EmbeddingModel, GenerateObjectRequestBuilder, GenerateTextRequestBuilder,
-        LanguageModel, RerankingModel, SerializationFormat, embed, generate_object, generate_text,
-        rerank, structured_rerank,
+        LanguageModel, RerankingModel, SerializationFormat, generate_object, generate_text, rerank,
+        structured_rerank,
     };
     use serde::Deserialize;
     use std::sync::Arc;
@@ -998,6 +998,8 @@ mod tests {
 
     #[tokio::test]
     async fn embedding_test() {
+        use crate::embed::embed;
+
         let provider = Arc::new(AIProvider::from(
             AmazonBedrockProviderBuilder::default()
                 .region("REGION")
@@ -1022,7 +1024,7 @@ mod tests {
             ])
             .build();
 
-        let embedding_response = embedFn(request).await.unwrap();
+        let embedding_response = embed(request).await.unwrap();
         dbg!(&embedding_response);
     }
 }

@@ -5,6 +5,7 @@ pub mod messages;
 pub mod rerank;
 pub mod structured_rerank;
 
+pub use embed::*;
 pub use generate_object::*;
 pub use generate_text::*;
 pub use messages::*;

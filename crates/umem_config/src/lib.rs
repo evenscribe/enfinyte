@@ -4,13 +4,6 @@ use serde::Deserialize;
 use std::net::SocketAddr;
 
 #[derive(Debug, Deserialize, Clone)]
-pub struct Cloudflare {
-    pub account_id: String,
-    pub api_token: String,
-    pub model: String,
-}
-
-#[derive(Debug, Deserialize, Clone)]
 pub struct OpenAI {
     pub api_key: String,
     pub base_url: String,
@@ -36,6 +29,12 @@ pub enum Provider {
 }
 
 #[derive(Debug, Deserialize, Clone)]
+pub struct EmbeddingModel {
+    pub provider: Provider,
+    pub model: String,
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct LanguageModel {
     pub provider: Provider,
     pub model: String,
@@ -52,12 +51,6 @@ pub struct Mcp {
     pub remote_url: String,
     pub jwks_url: String,
     pub work_os: WorkOs,
-}
-
-#[derive(Debug, Deserialize, Clone)]
-pub enum EmbeddingModel {
-    #[serde(rename = "cloudflare")]
-    Cloudflare(Cloudflare),
 }
 
 #[derive(Debug, Deserialize, Clone)]

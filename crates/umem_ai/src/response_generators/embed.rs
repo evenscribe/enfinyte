@@ -6,9 +6,7 @@ use backon::{ExponentialBuilder, Retryable};
 use reqwest::header::HeaderMap;
 use std::{sync::Arc, time::Duration};
 
-pub async fn embed(
-    mut request: EmbeddingRequest,
-) -> Result<EmbeddingResponse, ResponseGeneratorError> {
+pub async fn embed(request: EmbeddingRequest) -> Result<EmbeddingResponse, ResponseGeneratorError> {
     let per_request_timeout = request.timeout;
     let max_retries = request.max_retries;
     let total_delay = per_request_timeout.mul_f32(max_retries as f32 / 2.0);

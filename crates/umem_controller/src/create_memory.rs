@@ -3,13 +3,15 @@ use chrono::Utc;
 use std::sync::Arc;
 use thiserror::Error;
 use typed_builder::TypedBuilder;
-use umem_ai::{AIProviderError, LanguageModel};
+use umem_ai::{
+    embed::{embed, EmbeddingRequest},
+    AIProviderError, EmbeddingModel, LanguageModel, ResponseGeneratorError,
+};
 use umem_annotations::{Annotation, AnnotationError, LLMAnnotated};
 use umem_core::{
     LifecycleState, Memory, MemoryContentError, MemoryContext, MemoryContextError, MemoryError,
     TemporalMetadata,
 };
-use umem_embeddings::{EmbedderBase, EmbedderError};
 use umem_vector_store::VectorStoreError;
 use uuid::Uuid;
 
@@ -21,11 +23,11 @@ pub enum CreateMemoryError {
     #[error("vector store action failed with: {0}")]
     VectorStoreError(#[from] VectorStoreError),
 
-    #[error("embedder action failed with: {0}")]
-    EmbedderError(#[from] EmbedderError),
-
     #[error("ai provider action failed with: {0}")]
     AIProviderError(#[from] AIProviderError),
+
+    #[error("response generator action failed with: {0}")]
+    ResponseGeneratorError(#[from] ResponseGeneratorError),
 }
 
 #[derive(Debug, Error)]
@@ -120,9 +122,9 @@ impl CreateMemoryRequest {
 #[derive(TypedBuilder, Default)]
 pub struct CreateMemoryOptions {
     #[builder(default = None)]
-    pub embedder: Option<Arc<dyn EmbedderBase + Send + Sync>>,
+    pub embedding_model: Option<Arc<EmbeddingModel>>,
     #[builder(default = None)]
-    pub model: Option<Arc<LanguageModel>>,
+    pub language_model: Option<Arc<LanguageModel>>,
 }
 
 impl MemoryController {
@@ -140,12 +142,27 @@ impl MemoryController {
         _options: Option<CreateMemoryOptions>,
     ) -> Result<Memory, CreateMemoryError> {
         let vector_store = Arc::clone(&self.vector_store);
-        let embedder = Arc::clone(&self.embedder);
+        let embedding_model = Arc::clone(&self.embedding_model);
         let language_model = Arc::clone(&self.language_model);
 
         let memory = request.build(language_model).await?;
-        let vector = embedder.generate_embedding(memory.get_summary()).await?;
-        vector_store.insert(&[&vector], &[&memory]).await?;
+
+        let request = EmbeddingRequest::builder()
+            .model(embedding_model)
+            .input(vec![memory.get_summary().to_owned()])
+            .build();
+
+        let embedding_response = embed(request).await?;
+
+        //NOTE: change this later, just didin't want to fight with the drilled types
+        let slices: Vec<&[f32]> = embedding_response
+            .embeddings
+            .iter()
+            .map(|inner| inner.as_slice())
+            .collect();
+        let slice_of_slices: &[&[f32]] = &slices;
+
+        vector_store.insert(slice_of_slices, &[&memory]).await?;
         Ok(memory)
     }
 }
