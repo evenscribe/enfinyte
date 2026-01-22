@@ -474,7 +474,7 @@ impl Embeds for AmazonBedrockProvider {
         for data in request.input.into_iter() {
             let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
                 ResponseGeneratorError::InternalServerError(format!(
-                    "Failed to acquire thread lock while makng multiple requests. Details: {e}"
+                    "Failed to acquire thread lock while making multiple requests. Details: {e}"
                 ))
             })?;
 
