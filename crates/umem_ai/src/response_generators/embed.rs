@@ -1,7 +1,10 @@
-use crate::{EmbeddingModel, ResponseGeneratorError, utils::is_retryable_error};
+use crate::{
+    EmbeddingModel, ResponseGeneratorError,
+    utils::{self, is_retryable_error},
+};
 use backon::{ExponentialBuilder, Retryable};
+use reqwest::header::HeaderMap;
 use std::{sync::Arc, time::Duration};
-use thiserror::Error;
 
 pub async fn embed(
     mut request: EmbeddingRequest,
@@ -13,14 +16,7 @@ pub async fn embed(
     let generation = || {
         let model = Arc::clone(&request.model);
         let provider = Arc::clone(&model.provider);
-        let request = EmbeddingRequest {
-            model: Arc::clone(&model),
-            input: std::mem::take(&mut request.input),
-            custom_headers: std::mem::take(&mut request.custom_headers),
-            timeout: request.timeout.clone(),
-            max_retries,
-            max_parallels: request.max_parallels,
-        };
+        let request = request.clone();
 
         async move {
             tokio::time::timeout(per_request_timeout, provider.do_embed(request))
@@ -44,16 +40,37 @@ pub async fn embed(
         .await
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug, typed_builder::TypedBuilder)]
 pub struct EmbeddingRequest {
     pub model: Arc<EmbeddingModel>,
+
+    #[builder(setter(transform = |value: impl IntoIterator<Item = String>|
+        value.into_iter().collect())
+    )]
     pub input: Vec<String>,
+
+    #[builder(default = 3_usize)]
     pub max_retries: usize,
+
+    #[builder(default = 1000_usize)]
     pub max_parallels: usize,
-    pub custom_headers: Vec<(String, String)>,
+
+    #[builder(default, setter(transform = |value: Vec<(String, String)>|
+           utils::build_header_map(value.as_slice()).unwrap_or_default()
+    ))]
+    pub custom_headers: HeaderMap,
+
+    #[builder(default = Duration::from_secs(60))]
     pub timeout: Duration,
+
+    #[builder(default = 1024)]
+    pub dimensions: usize,
+
+    #[builder(default = true)]
+    pub normalize: bool,
 }
 
+#[derive(Debug, Clone)]
 pub struct EmbeddingResponse {
     pub embeddings: Vec<Vec<f32>>,
 }

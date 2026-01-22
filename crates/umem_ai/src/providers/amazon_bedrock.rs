@@ -2,7 +2,7 @@ use crate::{
     Embeds, GenerateObjectRequest, GenerateObjectResponse, GeneratesObject, GeneratesText,
     OpenAIProvider, Ranking, RerankRequest, RerankResponse, Reranks, ReranksStructuredData,
     SerializationMode, StructuredRanking, StructuredRerankRequest, StructuredRerankResponse,
-    embed::{EmbeddingRequest, EmbeddingResponse},
+    embed::{EmbeddingRequest, EmbeddingResponse, embed as embedFn},
     messages::{FilePart, UserModelMessage},
     response_generators::{
         self, GenerateTextRequest, GenerateTextResponse, ResponseGeneratorError,
@@ -18,7 +18,7 @@ use aws_sdk_bedrockagentruntime::types::{
     RerankTextDocument, RerankingConfiguration, RerankingConfigurationType,
 };
 use aws_sdk_bedrockruntime::{
-    error::BuildError,
+    error::{BuildError, ProvideErrorMetadata},
     operation::{converse::builders::ConverseFluentBuilder, invoke_model::InvokeModelOutput},
     types::{
         AnyToolChoice, ContentBlock, ConverseOutput, ImageBlock, InferenceConfiguration, Message,
@@ -30,7 +30,7 @@ use futures::future::join_all;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::Map;
-use std::sync::Arc;
+use std::{error::Error, sync::Arc};
 use thiserror::Error;
 use tokio::sync::Semaphore;
 
@@ -89,7 +89,7 @@ impl GeneratesText for AmazonBedrockProvider {
             .await
             .map_err(|e| {
                 tracing::error!("{}", e);
-                ResponseGeneratorError::BedrockConverseError(format!("{:?}", e))
+                ResponseGeneratorError::BedrockConverseError(format!("{:?}", e.meta()))
             })?;
 
         let converse_output = match converse_response.output {
@@ -154,7 +154,7 @@ impl GeneratesObject for AmazonBedrockProvider {
             ))
             .send()
             .await
-            .map_err(|e| ResponseGeneratorError::BedrockConverseError(e.to_string()))?;
+            .map_err(|e| ResponseGeneratorError::BedrockConverseError(e.meta().to_string()))?;
 
         let converse_output = match converse_response.output {
             Some(output) => output,
@@ -264,7 +264,7 @@ impl Reranks for AmazonBedrockProvider {
             )
             .send()
             .await
-            .map_err(|e| ResponseGeneratorError::BedrockAgentRerankCommandSendError(e.to_string()))?;
+            .map_err(|e| ResponseGeneratorError::BedrockAgentRerankCommandSendError(e.meta().to_string()))?;
 
         let results = response.results();
 
@@ -423,7 +423,7 @@ impl ReranksStructuredData for AmazonBedrockProvider {
             )
             .send()
             .await
-            .map_err(|e| ResponseGeneratorError::BedrockAgentRerankCommandSendError(e.to_string()))?;
+            .map_err(|e| ResponseGeneratorError::BedrockAgentRerankCommandSendError(e.meta().to_string()))?;
 
         let results = response.results();
 
@@ -485,13 +485,15 @@ impl Embeds for AmazonBedrockProvider {
                 let invoke_res = bedrockruntime_client
                     .invoke_model()
                     .model_id(&model_name)
-                    .body(aws_smithy_types::Blob::new(data))
+                    .body(aws_smithy_types::Blob::new(
+                        serde_json::json!({"inputText":data, "dimensions": request.dimensions, "normalize": request.normalize}).to_string(),
+                    ))
                     .send()
                     .await
                     .map_err(|e| {
-                        ResponseGeneratorError::BedrockRerankInvokeError(format!(
-                            "Failed to invoke Bedrock reranking model: {}",
-                            e
+                        ResponseGeneratorError::BedrockInvokeError(format!(
+                            "Failed to invoke Bedrock embedding model: {}",
+                            e.meta()
                         ))
                     });
                 drop(permit);
@@ -767,9 +769,9 @@ impl AmazonBedrockProviderBuilder {
 mod tests {
     use super::*;
     use crate::{
-        AIProvider, GenerateObjectRequestBuilder, GenerateTextRequestBuilder, LanguageModel,
-        RerankingModel, SerializationFormat, generate_object, generate_text, rerank,
-        structured_rerank,
+        AIProvider, EmbeddingModel, GenerateObjectRequestBuilder, GenerateTextRequestBuilder,
+        LanguageModel, RerankingModel, SerializationFormat, embed, generate_object, generate_text,
+        rerank, structured_rerank,
     };
     use serde::Deserialize;
     use std::sync::Arc;
@@ -992,5 +994,35 @@ mod tests {
 
         let rerank_response = structured_rerank(request).await.unwrap();
         dbg!(&rerank_response);
+    }
+
+    #[tokio::test]
+    async fn embedding_test() {
+        let provider = Arc::new(AIProvider::from(
+            AmazonBedrockProviderBuilder::default()
+                .region("REGION")
+                .access_key_id("ACESS_KEY_ID")
+                .secret_access_key("SECRET_ACCESS_KEY")
+                .build()
+                .await
+                .unwrap(),
+        ));
+
+        let model = Arc::new(EmbeddingModel {
+            provider,
+            model_name: "amazon.titan-embed-text-v2:0".to_string(),
+        });
+
+        let request = EmbeddingRequest::builder()
+            .model(model)
+            .input(vec![
+                "The quick brown fox jumps over the lazy dog.".to_string(),
+                "To be or not to be, that is the question.".to_string(),
+                "All that glitters is not gold.".to_string(),
+            ])
+            .build();
+
+        let embedding_response = embedFn(request).await.unwrap();
+        dbg!(&embedding_response);
     }
 }

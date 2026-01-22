@@ -103,6 +103,7 @@ impl RerankingModel {
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct EmbeddingModel {
     pub provider: Arc<AIProvider>,
     pub model_name: String,
@@ -177,6 +178,7 @@ impl AIProvider {
         request: EmbeddingRequest,
     ) -> Result<EmbeddingResponse, ResponseGeneratorError> {
         match self {
+            AIProvider::AmazonBedrock(provider) => provider.embed(request),
             _ => unimplemented!(),
         }
         .await

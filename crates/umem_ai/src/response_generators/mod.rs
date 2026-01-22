@@ -24,8 +24,8 @@ pub enum ResponseGeneratorError {
     BedrockConverseError(String),
     #[error("BedrockAgentRuntime Rerank Command error, Details: {0}")]
     BedrockAgentRerankCommandSendError(String),
-    #[error("BedrockRuntime Rerank Invoke API error, Details: {0}")]
-    BedrockRerankInvokeError(String),
+    #[error("BedrockRuntime Invoke API error, Details: {0}")]
+    BedrockInvokeError(String),
     #[error("empty response from AI provider")]
     EmptyProviderResponse,
     #[error("invalid response from AI provider, Details: {0}")]

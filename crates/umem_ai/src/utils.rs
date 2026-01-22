@@ -64,6 +64,14 @@ pub fn is_retryable_error(e: &ResponseGeneratorError) -> bool {
         }
         ResponseGeneratorError::BedrockAgentRerankCommandSendError(e) => {
             tracing::error!("Bedrock agent rerank command send error: {}", e);
+            false
+        }
+        ResponseGeneratorError::BedrockInvokeError(e) => {
+            tracing::error!("Bedrock agent embed invoke command error: {}", e);
+            false
+        }
+        ResponseGeneratorError::InternalServerError(e) => {
+            tracing::error!("Internal Server Error: {}", e);
             true
         }
     }
