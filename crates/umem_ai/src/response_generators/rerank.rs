@@ -1,8 +1,16 @@
+use crate::{ResponseGeneratorError, models::RerankingModel, utils::is_retryable_error};
+use async_trait::async_trait;
 use backon::{ExponentialBuilder, Retryable};
 use serde_json::{Map, Value};
-
-use crate::{RerankingModel, ResponseGeneratorError, utils::is_retryable_error};
 use std::{sync::Arc, time::Duration};
+
+#[async_trait]
+pub trait Reranks {
+    async fn rerank(
+        &self,
+        request: RerankRequest,
+    ) -> Result<RerankResponse, ResponseGeneratorError>;
+}
 
 pub async fn rerank(request: RerankRequest) -> Result<RerankResponse, ResponseGeneratorError> {
     let per_request_timeout = request.timeout;

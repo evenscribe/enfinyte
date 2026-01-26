@@ -1,6 +1,6 @@
 use crate::{
-    AIProvider, AIProviderError, AmazonBedrockProviderBuilder, LanguageModel, LanguageModelError,
-    OpenAIProvider,
+    AIProvider, AIProviderError, AmazonBedrockProviderBuilder, OpenAIProvider,
+    models::{LanguageModel, LanguageModelError},
 };
 use std::sync::Arc;
 use tokio::sync::OnceCell;

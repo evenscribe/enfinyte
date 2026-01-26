@@ -1,10 +1,20 @@
 use crate::{
-    EmbeddingModel, ResponseGeneratorError,
+    ResponseGeneratorError,
+    models::EmbeddingModel,
     utils::{self, is_retryable_error},
 };
+use async_trait::async_trait;
 use backon::{ExponentialBuilder, Retryable};
 use reqwest::header::HeaderMap;
 use std::{sync::Arc, time::Duration};
+
+#[async_trait]
+pub trait Embeds {
+    async fn embed(
+        &self,
+        request: EmbeddingRequest,
+    ) -> Result<EmbeddingResponse, ResponseGeneratorError>;
+}
 
 pub async fn embed(request: EmbeddingRequest) -> Result<EmbeddingResponse, ResponseGeneratorError> {
     let per_request_timeout = request.timeout;

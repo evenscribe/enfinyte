@@ -1,6 +1,6 @@
 use crate::{
-    AIProvider, AIProviderError, AmazonBedrockProviderBuilder, EmbeddingModel, EmbeddingModelError,
-    OpenAIProvider,
+    AIProvider, AIProviderError, AmazonBedrockProviderBuilder, OpenAIProvider,
+    models::{EmbeddingModel, EmbeddingModelError},
 };
 use std::sync::Arc;
 use tokio::sync::OnceCell;

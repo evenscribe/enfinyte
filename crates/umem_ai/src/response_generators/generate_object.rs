@@ -1,5 +1,7 @@
-use crate::{LanguageModel, ResponseGeneratorError, utils};
+use crate::models::LanguageModel;
+use crate::{ResponseGeneratorError, utils};
 use crate::{response_generators::messages::Message, utils::is_retryable_error};
+use async_trait::async_trait;
 use backon::{ExponentialBuilder, Retryable};
 use reqwest::header::HeaderMap;
 use schemars::{JsonSchema, Schema, schema_for};
@@ -7,6 +9,14 @@ use serde::{Serialize, de::DeserializeOwned};
 use std::time::Duration;
 use std::{marker::PhantomData, sync::Arc};
 use thiserror::Error;
+
+#[async_trait]
+pub trait GeneratesObject {
+    async fn generate_object<T: Clone + JsonSchema + Serialize + Send + Sync + DeserializeOwned>(
+        &self,
+        request: GenerateObjectRequest<T>,
+    ) -> Result<GenerateObjectResponse<T>, ResponseGeneratorError>;
+}
 
 pub async fn generate_object<T>(
     request: GenerateObjectRequest<T>,
@@ -21,6 +31,7 @@ where
     let generation = || {
         let model = Arc::clone(&request.model);
         let provider = Arc::clone(&model.provider);
+
         let request = request.clone();
         async move {
             tokio::time::timeout(per_request_timeout, provider.do_generate_object(request))

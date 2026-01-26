@@ -1,10 +1,19 @@
-use std::{sync::Arc, time::Duration};
-
+use crate::{ResponseGeneratorError, models::RerankingModel, utils::is_retryable_error};
+use async_trait::async_trait;
 use backon::{ExponentialBuilder, Retryable};
 use serde::{Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value};
+use std::{sync::Arc, time::Duration};
 
-use crate::{RerankingModel, ResponseGeneratorError, utils::is_retryable_error};
+#[async_trait]
+pub trait ReranksStructuredData {
+    async fn rerank_structured<T>(
+        &self,
+        request: StructuredRerankRequest<T>,
+    ) -> Result<StructuredRerankResponse<T>, ResponseGeneratorError>
+    where
+        T: Serialize + Clone + Send + Sync;
+}
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum SerializationFormat {

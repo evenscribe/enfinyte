@@ -769,9 +769,10 @@ impl AmazonBedrockProviderBuilder {
 mod tests {
     use super::*;
     use crate::{
-        AIProvider, EmbeddingModel, GenerateObjectRequestBuilder, GenerateTextRequestBuilder,
-        LanguageModel, RerankingModel, SerializationFormat, generate_object, generate_text, rerank,
-        structured_rerank,
+        AIProvider, GenerateObjectRequestBuilder, GenerateTextRequestBuilder, SerializationFormat,
+        generate_object, generate_text,
+        models::{EmbeddingModel, LanguageModel, RerankingModel},
+        rerank, structured_rerank,
     };
     use serde::Deserialize;
     use std::sync::Arc;

@@ -359,7 +359,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        AIProvider, LanguageModel,
+        AIProvider,
+        models::LanguageModel,
         response_generators::{
             GenerateTextRequestBuilder,
             generate_object::{GenerateObjectRequestBuilder, generate_object},
